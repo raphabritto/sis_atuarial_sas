@@ -127,7 +127,7 @@ quit;
 		%do s = 1 %to &numeroCalculos;
 			%_eg_conditional_dropds(fluxo.assistidos_estoc_s&s.);
 			proc iml;
-				load module= drawSobrevivencia;
+				load module= sorteioEstocastico;
 
 				use fluxo.assistidos;
 					read all var {id_participante t CdSexoPartic IddPartiEvol TipoAssistido} into assistidos;
@@ -147,9 +147,10 @@ quit;
 						t = assistidos[a, 2];
 						sexo_partic = assistidos[a, 3];
 						idade_partic_fluxo = assistidos[a, 4];
-/*						tipo_beneficio = assistidos[a, 5];*/
-/*						is_deficiente = assistidos[a, 6];*/
 						tipo_assistido = assistidos[a, 5];
+
+						if (t = 0) then
+							isVivo = 1;
 
 						if (sexo_partic = 1) then do;
 							qx	= tabua_f[idade_partic_fluxo + 1, 1];
@@ -172,7 +173,7 @@ quit;
 								probab_morte = 1;
 						end;
 
-						isVivo = drawSobrevivencia(t, idade_partic_fluxo, probab_morte, isVivo);
+						isVivo = sorteioEstocastico(probab_morte, isVivo);
 
 						isMorto = 0;
 

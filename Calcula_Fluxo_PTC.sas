@@ -10,11 +10,18 @@
 
 		proc iml;
 			USE fluxo.ativos_tp&tipoCalculo._s&s.;
-				read all var {id_participante t tFluxo PrbCasado BenLiqCobPtc} into ativos;
+				read all var {id_participante} into id_participante;
+				read all var {t1} into t1;
+				read all var {t2} into t2;
+				read all var {probab_casado} into probab_casado;
+				read all var {beneficio_liquido_ptc} into beneficio_liquido_ptc;
 			CLOSE fluxo.ativos_tp&tipoCalculo._s&s.;
 
 			use fluxo.ativos_fatores;
-				read all var {px pjx pxs apx} into fatores;
+				read all var {px} into px;
+				read all var {pjx} into pjx;
+				read all var {pxs} into pxs;
+				read all var {apx} into apx;
 			close fluxo.ativos_fatores;
 
 			if (&tipoCalculo = 1) then do;
@@ -28,115 +35,91 @@
 				close premissa.taxa_juros_s&s.;
 
 				use fluxo.ativos_fatores_estoc_s&s.;
-					read all var {vivo aposentadoria valido ligado} into fatores_estoc;
+					read all var {vivo} into vivo;
+					read all var {aposentado} into aposentado;
+					read all var {valido} into valido;
+					read all var {ligado} into ligado;
 				close fluxo.ativos_fatores_estoc_s&s.;
 			end;
 
-			qtsObs = nrow(ativos);
+			qtd_ativos = nrow(id_participante);
 
-			if (qtsObs > 0) then do;
-				fluxo_ptc = J(qtsObs, 6, 0);
-
-				pagamento = 0;
+			if (qtd_ativos > 0) then do;
+				pagamento_ptc = J(qtd_ativos, 1, 0);
+				despesa_ptc = J(qtd_ativos, 1, 0);
+				despesa_vp_ptc = J(qtd_ativos, 1, 0);
 				
-				DO a = 1 TO qtsObs;
-					t_cober = ativos[a, 2];
-					t_fluxo = ativos[a, 3];
-					probab_casado = ativos[a, 4];
-					beneficio_liquido_ptc = ativos[a, 5];
-
-					px	= fatores[a, 1];
-					pjx	= fatores[a, 2];
-					apx	= fatores[a, 4];
-/*					taxa_juros_cober = fatores[a, 5];*/
-/*					taxa_juros_fluxo = fatores[a, 6];*/
-
-					taxa_juros_cober = taxas_juros[t_cober+1];
-					taxa_juros_fluxo = taxas_juros[t_fluxo+1];
+				DO a = 1 TO qtd_ativos;
+					taxa_juros_cober = taxas_juros[t1[a]+1];
+					taxa_juros_fluxo = taxas_juros[t2[a]+1];
 
 					if (&tipoCalculo = 1) then do;
 						if (&CdPlanBen = 4 | &CdPlanBen = 5) then 
-							pxs = 1;
-						else
-							pxs = fatores[a, 3];
+							pxs[a] = 1;
 					end;
 					else do;
-						px 	= fatores_estoc[a, 1];
-						apx = fatores_estoc[a, 2] * fatores_estoc[a, 1] * fatores_estoc[a, 3] * fatores_estoc[a, 4];
-						pxs = 1;
+						px[a] = vivo[a];
+						apx[a] = aposentado[a] * vivo[a] * valido[a] * ligado[a];
+						pxs[a] = 1;
 					end;
 					
-					if (t_cober = t_fluxo) then do;
+					if (t1[a] = t2[a]) then do;
 						tvt = 0;
-						pagamento = max(0, (beneficio_liquido_ptc / &FtBenEnti) * apx * &NroBenAno * probab_casado);
+						pagamento_ptc[a] = max(0, round((beneficio_liquido_ptc[a] / &FtBenEnti) * apx[a] * &NroBenAno * probab_casado[a], 0.01));
 					end;
 					else
-						pagamento = max(0, pagamento * (1 + &PrTxBenef));
+						pagamento_ptc[a] = max(0, round(pagamento_ptc[a-1] * (1 + &PrTxBenef), 0.01));
 
-					despesa = max(0, pagamento * (pjx - px* pjx) * pxs);
+					despesa_ptc[a] = max(0, round(pagamento_ptc[a] * (pjx[a] - px[a] * pjx[a]) * pxs[a], 0.01));
 
-					v = max(0, 1 / ((1 + taxa_juros_cober) ** t_cober));
+					v = max(0, 1 / ((1 + taxa_juros_cober) ** t1[a]));
 					vt = max(0, 1 / ((1 + taxa_juros_fluxo) ** tvt));
 
-					encargo = max(0, pagamento * (pjx - px* pjx) * vt * pxs * v * &FtBenEnti);
+					despesa_vp_ptc[a] = max(0, round(pagamento_ptc[a] * (pjx[a] - px[a] * pjx[a]) * vt * pxs[a] * v * &FtBenEnti, 0.01));
 
 					tvt = tvt + 1;
-
-					fluxo_ptc[a, 1] = ativos[a, 1];
-					fluxo_ptc[a, 2] = t_cober;
-					fluxo_ptc[a, 3] = t_fluxo;
-					fluxo_ptc[a, 4] = pagamento;
-					fluxo_ptc[a, 5] = despesa;
-					fluxo_ptc[a, 6] = encargo;
 				END;
 
-				create temp.ativos_fluxo_ptc_tp&tipoCalculo._s&s. from fluxo_ptc[colname={'id_participante' 'tCober' 'tFluxo' 'PagamentoPTC' 'DespesaPTC' 'DespesaVpPTC'}];
-					append from fluxo_ptc;
+				create temp.ativos_fluxo_ptc_tp&tipoCalculo._s&s. var {id_participante t1 t2 pagamento_ptc despesa_ptc despesa_vp_ptc};
+					append;
 				close temp.ativos_fluxo_ptc_tp&tipoCalculo._s&s.;
-
-				free ativos fatores fluxo_ptc fatores_estoc;
 			end;
 		quit;
 
-/*		data temp.ativos_fluxo_ptc_tp&tipoCalculo._s&s.;*/
-/*			set temp.ativos_fluxo_ptc_tp&tipoCalculo._s&s.;*/
-/*			*by id_participante tCobertura tDeterministico;*/
-/*			*format PagamentoPTC commax14.2 DespesaPTC commax14.2 DespesaVpPTC commax14.2 v_PTC 12.8 vt_PTC 12.8;*/
-/*			format PagamentoPTC commax14.2 DespesaPTC commax14.2 DespesaVpPTC commax14.2;*/
-/*		run;*/
+		%if (%sysfunc(exist(temp.ativos_fluxo_ptc_tp&tipoCalculo._s&s.))) %then %do;
+			%_eg_conditional_dropds(work.ativos_despesa_ptc_tp&tipoCalculo._s&s.);
+			proc summary data = temp.ativos_fluxo_ptc_tp&tipoCalculo._s&s.;
+			 class t2;
+			 var despesa_ptc despesa_vp_ptc;
+			 format despesa_ptc commax18.2 despesa_vp_ptc commax18.2;
+			 output out= work.ativos_despesa_ptc_tp&tipoCalculo._s&s. sum=;
+			run;
 
-		%_eg_conditional_dropds(work.ativos_despesa_ptc_tp&tipoCalculo._s&s.);
-		proc summary data = temp.ativos_fluxo_ptc_tp&tipoCalculo._s&s.;
-		 class tFluxo;
-		 var DespesaPTC DespesaVpPTC;
-		 format DespesaPTC commax18.2 DespesaVpPTC commax18.2;
-		 output out= work.ativos_despesa_ptc_tp&tipoCalculo._s&s. sum=;
-		run;
+			%_eg_conditional_dropds(fluxo.ativos_despesa_ptc_tp&tipoCalculo._s&s.);
+			data fluxo.ativos_despesa_ptc_tp&tipoCalculo._s&s.;
+				set work.ativos_despesa_ptc_tp&tipoCalculo._s&s.;
+				if cmiss(t2) then delete;
+				drop _TYPE_ _FREQ_;
+			run;
 
-		%_eg_conditional_dropds(fluxo.ativos_despesa_ptc_tp&tipoCalculo._s&s.);
-		data fluxo.ativos_despesa_ptc_tp&tipoCalculo._s&s.;
-			set work.ativos_despesa_ptc_tp&tipoCalculo._s&s.;
-			if cmiss(tFluxo) then delete;
-			drop _TYPE_ _FREQ_;
-		run;
+			%_eg_conditional_dropds(work.ativos_encargo_ptc_tp&tipoCalculo._s&s.);
+			proc summary data = temp.ativos_fluxo_ptc_tp&tipoCalculo._s&s.;
+			 class id_participante;
+			 var despesa_vp_ptc;
+			 format despesa_vp_ptc commax18.2;
+			 output out= work.ativos_encargo_ptc_tp&tipoCalculo._s&s. sum=;
+			run;
 
-		%_eg_conditional_dropds(work.ativos_encargo_ptc_tp&tipoCalculo._s&s.);
-		proc summary data = temp.ativos_fluxo_ptc_tp&tipoCalculo._s&s.;
-		 class id_participante;
-		 var DespesaVpPTC;
-		 format DespesaVpPTC commax18.2;
-		 output out= work.ativos_encargo_ptc_tp&tipoCalculo._s&s. sum=;
-		run;
+			%_eg_conditional_dropds(fluxo.ativos_encargo_ptc_tp&tipoCalculo._s&s.);
+			data fluxo.ativos_encargo_ptc_tp&tipoCalculo._s&s.;
+				set work.ativos_encargo_ptc_tp&tipoCalculo._s&s.;
+				if cmiss(id_participante) then delete;
+				drop _TYPE_ _FREQ_;
+			run;
 
-		%_eg_conditional_dropds(fluxo.ativos_encargo_ptc_tp&tipoCalculo._s&s.);
-		data fluxo.ativos_encargo_ptc_tp&tipoCalculo._s&s.;
-			set work.ativos_encargo_ptc_tp&tipoCalculo._s&s.;
-			if cmiss(id_participante) then delete;
-			drop _TYPE_ _FREQ_;
-		run;
-
-		proc delete data = temp.ativos_fluxo_ptc_tp&tipoCalculo._s&s. (gennum=all);
-		run;
+			proc delete data = temp.ativos_fluxo_ptc_tp&tipoCalculo._s&s. (gennum=all);
+			run;
+		%end;
 	%end;
 %mend;
 %calculaFluxoPtc;
@@ -144,25 +127,3 @@
 proc datasets library=work kill memtype=data nolist;
 	run;
 quit;
-
-/*
-%_eg_conditional_dropds(determin.ptc_ativos);
-data determin.ptc_ativos;
-	set determin.ptc_ativos1 - determin.ptc_ativos&numberOfBlocksAtivos;
-run;
-
-proc datasets nodetails library=determin;
-   delete ptc_ativos1 - ptc_ativos&numberOfBlocksAtivos;
-run;
-*/
-
-/*
-%macro gravaMemoriaCalculo;
-	%if (&isGravaMemoriaCalculo = 0) %then %do;
-		proc datasets nodetails library=determin;
-		   delete ptc_ativos;
-		run;
-	%end;
-%mend;
-%gravaMemoriaCalculo;
-*/

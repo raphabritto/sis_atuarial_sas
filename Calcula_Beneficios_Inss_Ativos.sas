@@ -16,11 +16,32 @@
 			load module = CalculaSaldoConta;
 
 			use cobertur.ativos;
-				read all var {id_participante t DtNascPartic CdSexoPartic VlSdoConPart VlSdoConPatr VlSalEntPrev DtIniContInss TmpInssCalcu TmpContribInss VlBenefiInss IddIniApoInss IddParticCobert IddConjugCobert reajuste_salario PeContrParti PeContrPatro CdAutoPatroc} into ativos;
+				read all var {id_participante} into id_participante;
+				read all var {t1} into t1;
+				read all var {DtNascPartic} into DtNascPartic;
+				read all var {sexo_partic} into CdSexoPartic;
+				read all var {VlSdoConPart} into VlSdoConPart;
+				read all var {VlSdoConPatr} into VlSdoConPatr;
+				read all var {VlSalEntPrev} into VlSalEntPrev;
+				read all var {DtIniContInss} into DtIniContInss;
+				read all var {TmpInssCalcu} into TmpInssCalcu;
+				read all var {TmpContribInss} into TmpContribInss;
+				read all var {VlBenefiInss} into VlBenefiInss;
+				read all var {IddIniApoInss} into IddIniApoInss;
+				read all var {IDADE_PARTIC_COBER} into IddParticCobert;
+				read all var {IDADE_CONJUG_COBER} into IddConjugCobert;
+				read all var {reajuste_salario} into reajuste_salario;
+				read all var {PeContrParti} into perc_contribuicao_partic;
+				read all var {PeContrPatro} into perc_contribuicao_patroc;
+				read all var {CdAutoPatroc} into CdAutoPatroc;
 			close cobertur.ativos;
 
 			use cobertur.ativos_fatores;
-				read all var {ex apxa pxs taxa_risco_partic taxa_risco_patroc} into fatores;
+				read all var {ex} into ex;
+				read all var {apxa} into apxa;
+				read all var {pxs} into pxs;
+				read all var {taxa_risco_partic} into taxa_risco_partic;
+				read all var {taxa_risco_patroc} into taxa_risco_patroc;
 			close cobertur.ativos_fatores;
 
 			if (&tipoCalculo = 1) then do;
@@ -34,586 +55,131 @@
 				close premissa.taxa_juros_s&s.;
 			end;
 
-			qtdAtivos = nrow(ativos);
-			qtdFatores = nrow(fatores);
+			qtd_ativos = nrow(id_participante);
 
-			if (qtdAtivos > 0 & qtdFatores > 0 & (qtdAtivos = qtdFatores)) then do;
-				benef_inss = J(qtdAtivos, 9, 0);
-				px1s = 0;
-				apx1 = 0;
+			if (qtd_ativos > 0) then do;
+				salario_contrib 	= J(qtd_ativos, 1, 0);
+				contribuicao_partic	= J(qtd_ativos, 1, 0);
+				contribuicao_patroc	= J(qtd_ativos, 1, 0);
+				saldo_conta_partic	= J(qtd_ativos, 1, 0);
+				saldo_conta_patroc	= J(qtd_ativos, 1, 0);
+				SalBenefInss		= J(qtd_ativos, 1, 0);
+				beneficioInss		= J(qtd_ativos, 1, 0);
 
-				DO a = 1 TO qtdAtivos;
-					IdParticipante = ativos[a, 1];
-					t = ativos[a, 2];
-					DtNascPartic = ativos[a, 3];
-					CdSexoPartic = ativos[a, 4];
-					VlSalEntPrev = ativos[a, 7];
-					DtIniContInss = ativos[a, 8];
-					TmpInssCalcu = ativos[a, 9];
-					TmpContribInss = ativos[a, 10];
-					VlBenefiInss = ativos[a, 11];
-					IddIniApoInss = ativos[a, 12];
-					i = ativos[a, 13];
-					j = ativos[a, 14];
-					fator_reajuste_salarial = ativos[a, 15];
-					perc_contribuicao_partic = ativos[a, 16];
-					perc_contribuicao_patroc = ativos[a, 17];
-					CdAutoPatroc = ativos[a, 18];
+				if (&CdPlanBen ^= 2) then do;
+					DO a = 1 TO qtd_ativos;
+						FtRenVit = 0;
+						FtPrevideAtc = 0;
+						pxs_px1s = 0;
+						taxa_juros = 0;
 
-					ex = fatores[a, 1];
-					apx = fatores[a, 2];
-					pxs = fatores[a, 3];
-					taxa_risco_partic = fatores[a, 4];
-					taxa_risco_patroc = fatores[a, 5];
+						if (t1[a] = 0) then do;
+							*--- para REB e Novo Plano ---*;
+							taxa_juros = taxas_juros[t1[a] + 1];
+						end;
+						else if (t1[a] > 0) then do;
+							*--- para REB e Novo Plano ---*;
+							taxa_juros = taxas_juros[t1[a]];
+						end;
 
-					contribuicao_partic = 0;
-					contribuicao_patroc = 0;
-					FtRenVit = 0;
-					FtPrevideAtc = 0;
-					SalConPrj = 0;
-					pxs_px1s = 0;
+						if (&tipoCalculo = 2) then do;
+							apxa[a] = 0;
+							pxs[a] = 1;
+						end;
 
-					if (&CdPlanBen = 2) then do;
-						saldo_conta_partic = 0;
-						saldo_conta_patroc = 0;
-						SalBenefInss = 0;
-						beneficioInss = 0;
-					end;
-					else if (t = 0) then do;
-						saldo_conta_partic = ativos[a, 5];
-						saldo_conta_patroc = ativos[a, 6];
-						SalBenefInss = 0;
-						beneficioInss = 0;
-						contrib_sld_cnt_partic = 0;
-						contrib_sld_cnt_patroc = 0;
-
-						*--- para REB e Novo Plano ---*;
-						apx1 = fatores[a, 2];
-						px1s = fatores[a, 3];
-/*						taxa_juros = fatores[a, 4];*/
-						taxa_juros = taxas_juros[t+1];
-					end;
-					else if (t > 0) then do;
-/*						contrib_sld_cnt_partic = benef_inss[a - 1, 4];*/
-/*						contrib_sld_cnt_patroc = benef_inss[a - 1, 5];*/
-						*--- para REB e Novo Plano ---*;
-						apx1 = fatores[a - 1, 2];
-						px1s = fatores[a - 1, 3];
-/*						taxa_juros = fatores[a - 1, 4];*/
-						taxa_juros = taxas_juros[t];
-					end;
-
-					if (&tipoCalculo = 2) then do;
-						apx1 = 0;
-						pxs = 1;
-						px1s = 1;
-					end;
-
-					if (&CdPlanBen ^= 2) then do;
+/*						if (&CdPlanBen ^= 2) then do;*/
 						*------ Data do calculo na evolucao ------*;
-						DtCalcEvol = INTNX('YEAR', &DtCalAval, t, 'S');
+						DtCalcEvol = INTNX('YEAR', &DtCalAval, t1[a], 'S');
+
 						*------ Data de aposentadoria de acordo com a idade na evolucao ------*;
-						DtApoEntPrev = INTNX('YEAR', DtNascPartic, i, &vAlignment);
+						DtApoEntPrev = INTNX('YEAR', DtNascPartic[a], IddParticCobert[a], &vAlignment);
 
-						TmpInssContr = min(TmpInssCalcu + t, TmpContribInss);
+						TmpInssContr = min(TmpInssCalcu[a] + t1[a], TmpContribInss[a]);
+
 						*------ Salário de contribuicao projetado ------*;
-						SalConPrj = max(0, round(VlSalEntPrev * fator_reajuste_salarial * &FtSalPart, 0.01));
+						salario_contrib[a] = max(0, round(VlSalEntPrev[a] * reajuste_salario[a] * &FtSalPart, 0.01));
 
-						if (CdAutoPatroc = 0) then
-							SalConPrj = max(0, round(SalConPrj * ((1 + &PrSalPart) ** t), 0.01));
+						if (CdAutoPatroc[a] = 0) then
+							salario_contrib[a] = max(0, round(salario_contrib[a] * ((1 + &PrSalPart) ** t1[a]), 0.01));
 
-						if (pxs > 0 & px1s > 0) then
-							pxs_px1s = pxs / px1s;
+						if (t1[a] = 0) then
+							pxs_px1s = 1;
+						else do;
+							if (pxs[a] > 0 & pxs[a-1] > 0) then
+								pxs_px1s = pxs[a] / pxs[a-1];
+						end;
 
 						if (&CdPlanBen = 1) then do;
-							if (CdAutoPatroc = 0) then do;
-								contribuicao_partic = round(max(0, (GetContribuicao(SalConPrj / &FtSalPart) * &NroBenAno * (1 - apx)) * pxs), 0.01);
-								contribuicao_patroc = contribuicao_partic;
+							if (CdAutoPatroc[a] = 0) then do;
+								contribuicao_partic[a] = round(max(0, (GetContribuicao(salario_contrib[a] / &FtSalPart) * &NroBenAno * (1 - apxa[a])) * pxs[a]), 0.01);
+								contribuicao_patroc[a] = contribuicao_partic[a];
 							end;
 
-							saldo_conta_partic = max(0, round(saldo_conta_partic * pxs_px1s + contribuicao_partic, 0.01));
-							saldo_conta_patroc = 0;
+							if (t1[a] = 0) then
+								saldo_conta_partic[a] = max(0, round(VlSdoConPart[a] * pxs_px1s + contribuicao_partic[a], 0.01));
+							else
+								saldo_conta_partic[a] = max(0, round(saldo_conta_partic[a-1] * pxs_px1s + contribuicao_partic[a], 0.01));
 						end;
 						else if (&CdPlanBen = 4 | &CdPlanBen = 5) then do;
-							contribuicao_partic = GetContribuicaoPercentual(&tipoCalculo, &CdPlanBen, (SalConPrj / &FtSalPart), perc_contribuicao_partic, taxa_risco_partic, &PC_DESPESA_ADM_PARTICIPANTE, apx, pxs, 1);
-							contribuicao_patroc = GetContribuicaoPercentual(&tipoCalculo, &CdPlanBen, (SalConPrj / &FtSalPart), perc_contribuicao_patroc, taxa_risco_patroc, &PC_DESPESA_ADM_PATROCINADORA, apx, pxs, 2);
+							contribuicao_partic[a] = GetContribuicaoPercentual(&tipoCalculo, &CdPlanBen, (salario_contrib[a] / &FtSalPart), perc_contribuicao_partic[a], taxa_risco_partic[a], &PC_DESPESA_ADM_PARTICIPANTE, apxa[a], pxs[a], 1);
+							contribuicao_patroc[a] = GetContribuicaoPercentual(&tipoCalculo, &CdPlanBen, (salario_contrib[a] / &FtSalPart), perc_contribuicao_patroc[a], taxa_risco_patroc[a], &PC_DESPESA_ADM_PATROCINADORA, apxa[a], pxs[a], 2);
 
-							if (t > 0) then do;
-								saldo_conta_partic = max(0, round(saldo_conta_partic * (1 + taxa_juros) * pxs_px1s * (1 - apx1) + benef_inss[a - 1, 4] * (1 + taxa_juros), 0.01));
-								saldo_conta_patroc = max(0, round(saldo_conta_patroc * (1 + taxa_juros) * pxs_px1s * (1 - apx1) + benef_inss[a - 1, 5] * (1 + taxa_juros), 0.01));
+							if (t1[a] > 0) then do;
+								saldo_conta_partic[a] = max(0, round(saldo_conta_partic[a-1] * (1 + taxa_juros) * pxs_px1s * (1 - apxa[a - 1]) + contribuicao_partic[a - 1] * (1 + taxa_juros), 0.01));
+								saldo_conta_patroc[a] = max(0, round(saldo_conta_patroc[a-1] * (1 + taxa_juros) * pxs_px1s * (1 - apxa[a - 1]) + contribuicao_patroc[a - 1] * (1 + taxa_juros), 0.01));
 							end;
 						end;
-							
-						if ((t = 0 & i > IddIniApoInss) | (i <= IddIniApoInss)) then do;
+
+						if ((t1[a] = 0 & IddParticCobert[a] > IddIniApoInss[a]) | (IddParticCobert[a] <= IddIniApoInss[a])) then do;
 							*------ Fator para refletir a média dos 80% maiores salários do inss ------*;
-							ftSlBen80 = GetFatorMediaSalariosInss(max(DtIniContInss, &DatMedSal), DtCalcEvol);
+							ftSlBen80 = max(0, GetFatorMediaSalariosInss(max(DtIniContInss[a], &DatMedSal), DtCalcEvol));
+
 							*------ Fator previdenciário na data de aposentadoria integral na entidade / fator de transição ------*;
 							auxInssContr = TmpInssContr;
-							FtPrevideAtc = GetFatorPrevidenciario(auxInssContr, ex, i, CdSexoPartic);
+							FtPrevideAtc = max(0, GetFatorPrevidenciario(auxInssContr, ex[a], IddParticCobert[a], CdSexoPartic[a]));
+
 							*------ Salário para efeito de cálculo do inss - aposentadoria por tempo de contribuição ------*;
-							if (VlBenefiInss > 0) then 
-								SalBenefInss = round(VlBenefiInss * &FtInssAss * &FtBenInss, 0.01);
+							if (VlBenefiInss[a] > 0) then 
+								SalBenefInss[a] = max(0, round(VlBenefiInss[a] * &FtInssAss * &FtBenInss, 0.01));
 							else do;
-								SalBenefInss = max(0, min(round(SalConPrj * ftSlBen80, 0.01), round(&TtInssBen * &FtBenInss, 0.01)));
-								SalBenefInss = max(0, max(round(SalBenefInss, 0.01), round(&SalMinimo * &FtBenInss, 0.01)));
+								SalBenefInss[a] = max(0, min(round(salario_contrib[a] * ftSlBen80, 0.01), round(&TtInssBen * &FtBenInss, 0.01)));
+								SalBenefInss[a] = max(0, max(round(SalBenefInss[a], 0.01), round(&SalMinimo * &FtBenInss, 0.01)));
 							end;
+
 							*------ Salário projetado para efeito de cálculo do inss ------*;
-							beneficioInss = CalcSalarioInss(CdSexoPartic, VlBenefiInss, DtApoEntPrev, i, TmpInssContr, SalBenefInss, FtPrevideAtc);
+							beneficioInss[a] = max(0, CalcSalarioInss(CdSexoPartic[a], VlBenefiInss[a], DtApoEntPrev, IddParticCobert[a], TmpInssContr, SalBenefInss[a], FtPrevideAtc));
 							*beneficioInss = max(0, min(round(beneficioInss, 0.01), round(&TtInssBen * &FtBenInss, 0.01))); /* implementar em 31/12/2017 */
-							beneficioInss = max(0, round(beneficioInss, 0.01));
 						end;
-					end;
+						else do;
+							SalBenefInss[a] = SalBenefInss[a - 1];
+							beneficioInss[a] = beneficioInss[a - 1];
+						end;
+/*						end;*/
+					END;
+				end;
 
-					benef_inss[a, 1] = IdParticipante;
-					benef_inss[a, 2] = t;
-					benef_inss[a, 3] = SalConPrj;
-					benef_inss[a, 4] = contribuicao_partic;
-					benef_inss[a, 5] = contribuicao_patroc;
-					benef_inss[a, 6] = saldo_conta_partic;
-					benef_inss[a, 7] = saldo_conta_patroc;
-					benef_inss[a, 8] = SalBenefInss;
-					benef_inss[a, 9] = beneficioInss;
-				END;
-
-				create work.ativos_benef_inss_tp&tipoCalculo._s&s. from benef_inss[colname={'id_participante' 't' 'SalConPrjEvol' 'ConParSdoEvol' 'ConPatSdoEvol' 'VlSdoConPartEvol' 'VlSdoConPatrEvol' 'SalBenefInssEvol' 'SalProjeInssEvol'}];
-					append from benef_inss;
+				create work.ativos_benef_inss_tp&tipoCalculo._s&s. var {id_participante t1 salario_contrib contribuicao_partic contribuicao_patroc saldo_conta_partic saldo_conta_patroc SalBenefInss beneficioInss};
+					append;
 				close work.ativos_benef_inss_tp&tipoCalculo._s&s.;
-
-				free ativos benef_inss fatores;
 			end;
 		QUIT;
 
 /*		%_eg_conditional_dropds(cobertur.ativos_tp&tipoCalculo._s&s.);*/
-		data cobertur.ativos_tp&tipoCalculo._s&s.;
-			merge cobertur.ativos work.ativos_benef_inss_tp&tipoCalculo._s&s.;
-			by id_participante t;
-			format SalConPrjEvol commax14.2 ConParSdoEvol commax14.2 ConPatSdoEvol commax14.2 VlSdoConPartEvol commax14.2 VlSdoConPatrEvol commax14.2 SalBenefInssEvol commax14.2 SalProjeInssEvol commax14.2;
-			retain id_participante t;
-			drop CdSexoPartic CdSexoConjug CdAutoPatroc IddPartiCalc IddConjuCalc IddConjugCobert DtNascPartic CdPatrocPlan VlSdoConPart VlSdoConPatr VlSalEntPrev PeContrParti PeContrPatro reajuste_salario IddAdmPatroc IddAssEntPre TmpAdmIns DtIniContInss TmpInssCalcu TmpInssResto TmpInssTotal TmpContribInss IddApoEntPre TmpPlanoRest;
-		run;
-	%end;
+		%if (%sysfunc(exist(work.ativos_benef_inss_tp&tipoCalculo._s&s.))) %then %do;
+			data cobertur.ativos_tp&tipoCalculo._s&s.;
+				merge cobertur.ativos work.ativos_benef_inss_tp&tipoCalculo._s&s.;
+				by id_participante t1;
+				format salario_contrib commax14.2 contribuicao_partic commax14.2 contribuicao_patroc commax14.2 saldo_conta_partic commax14.2 saldo_conta_patroc commax14.2 SalBenefInss commax14.2 beneficioInss commax14.2;
+				retain id_participante t1;
+				drop sexo_partic sexo_conjug CdAutoPatroc idade_partic idade_conjug idade_conjug_cober DtNascPartic CdPatrocPlan VlSdoConPart VlSdoConPatr VlSalEntPrev PeContrParti PeContrPatro reajuste_salario IddAdmPatroc IddAssEntPre TmpAdmIns DtIniContInss TmpInssCalcu TmpInssResto TmpInssTotal TmpContribInss IddApoEntPre TmpPlanoRest;
+			run;
 
-	*proc delete data = cobertur.ativos;
+			proc delete data = work.ativos_benef_inss_tp&tipoCalculo._s&s.;
+		%end;
+	%end;
 %mend;
 %calculaBeneficioInss;
 
-/*proc datasets library=temp kill memtype=data nolist;*/
 proc datasets library=work kill memtype=data nolist;
 	run;
 quit;
-
-
-/*proc delete data = work.beneficio_cobertura_ativos work.beneficio_input_ativos;*/
-
-/*
-proc iml;
-	use tabuas.tabuas_servico_normal;
-		read all var {idade ex} into ex_fem where (sexo = 1 & t = 0);
-		read all var {idade ex} into ex_mas where (sexo = 2 & t = 0);
-		read all var {idade apxa} into apx_fem where (sexo = 1 & t = 0);
-		read all var {idade apxa} into apx_mas where (sexo = 2 & t = 0);
-	close;
-
-	use tabuas.tabuas_servico_ajustada;
-		read all var {idade lxs} into lxs_fem where (sexo = 1 & t = 0);
-		read all var {idade lxs} into lxs_mas where (sexo = 2 & t = 0);
-	close;
-
-	use work.taxa_risco;
-		read all var {t vl_taxa_risco} into risco_partic where (ID_RESPONSABILIDADE = 1);
-		read all var {t vl_taxa_risco} into risco_patroc where (ID_RESPONSABILIDADE = 2);
-	close;
-
-	use sisatu.taxa_juros;
-		read all var {t taxa_juros} into juros;
-	close;
-quit;
-*/
-
-/*
-%macro calculaBeneficioInss1;
-	%do s = 1 %to &numeroCalculos;
-		%_eg_conditional_dropds(work.ativos_beneficios_inss);
-		
-		PROC IML;
-			load module = GetFatorMediaSalariosInss;
-			load module = GetContribuicao;
-			load module = GetContribuicaoPercentual;
-			load module = GetFatorPrevidenciario;
-			load module = CalcSalarioInss;
-
-			use tabuas.tabuas_servico_normal;
-				read all var {idade ex} into ex_fem where (sexo = 1 & t = 0);
-				read all var {idade ex} into ex_mas where (sexo = 2 & t = 0);
-				read all var {idade apxa} into apx_fem where (sexo = 1 & t = 0);
-				read all var {idade apxa} into apx_mas where (sexo = 2 & t = 0);
-			close;
-
-			use tabuas.tabuas_servico_ajustada;
-				read all var {idade lxs} into lxs_fem where (sexo = 1 & t = 0);
-				read all var {idade lxs} into lxs_mas where (sexo = 2 & t = 0);
-			close;
-
-			use work.taxa_risco;
-				read all var {t vl_taxa_risco} into risco_partic where (ID_RESPONSABILIDADE = 1);
-				read all var {t vl_taxa_risco} into risco_patroc where (ID_RESPONSABILIDADE = 2);
-			close;
-
-			use sisatu.taxa_juros;
-				read all var {t taxa_juros} into juros;
-			close;
-
-			use partic.ativos;
-				read all var {id_participante IddPartiCalc IddConjuCalc} into ativos; *DtNascPartic CdSexoPartic VlSdoConPart VlSdoConPatr VlSalEntPrev DtIniContInss TmpInssCalcu TmpContribInss VlBenefiInss IddIniApoInss IddPartEvol IddConjEvol fator_reajuste_salarial PeContrParti PeContrPatro CdAutoPatroc} into ativos;
-			close;
-
-			qtdAtivos = nrow(ativos);
-
-			if (qtdAtivos > 0) then do;
-				*qtd_evol = 0;
-				*b = 1;
-
-*				DO a = 1 TO qtdAtivos;*;
-*					IddPartiCalc = ativos[a, 2];*;
-*					qtd_evol = qtd_evol + ((&MaxAge - IddPartiCalc) + 1);*;
-*				END;*;
-
-				*cobertura = J(qtd_evol, 4, 0);
-
-				do a = 1 to qtdAtivos;
-					id_participante	= ativos[a, 1];
-					idade_partic 	= ativos[a, 2];
-					idade_conjug 	= ativos[a, 3];
-
-					*------ Projeta os benefícios até a idade de aposentadoria do plano -1 ------*;
-					do t1 = 0 to (&MaxAge - idade_partic);
-						*------ Idade do participante na evolucao ------*;
-						i = min(idade_partic + t, &MaxAge);
-						*------ Idade do conjuce na evolucao ------*;
-						j = min(idade_conjug + t, &MaxAge);
-
-*						cobertura[b, 1] = IdParticipante;*;
-*						cobertura[b, 2] = t;*;
-*						cobertura[b, 3] = i;*;
-*						cobertura[b, 4] = j;*;
-*						b = b + 1;*;
-					END;
-				END;
-
-				create work.ativos_idades_cobertura from cobertura[colname={'id_participante' 't' 'IddPartEvol' 'IddConjEvol'}];
-					append from cobertura;
-				close;
-			end;
-
-			/*use work.ativos_idades_cobertura;
-				read all var {id_participante t DtNascPartic CdSexoPartic VlSdoConPart VlSdoConPatr VlSalEntPrev DtIniContInss TmpInssCalcu TmpContribInss VlBenefiInss IddIniApoInss IddPartEvol IddConjEvol fator_reajuste_salarial PeContrParti PeContrPatro CdAutoPatroc} into ativos;
-			close work.ativos_idades;
-
-			use work.ativos_fatores_tp&tipoCalculo._s&s.;
-				read all var {ex apxa pxs taxa_juros taxa_risco_partic taxa_risco_patroc} into fatores;
-			close work.ativos_fatores;
-
-			qtdAtivos = nrow(ativos);
-			qtdFatores = nrow(fatores);
-
-			if (qtdAtivos > 0 & qtdFatores > 0 & (qtdAtivos = qtdFatores)) then do;
-				cobertura = J(qtdAtivos, 9, 0);
-				px1s = 0;
-				apx1 = 0;
-
-				DO a = 1 TO qtdAtivos;
-					IdParticipante = ativos[a, 1];
-					t = ativos[a, 2];
-					DtNascPartic = ativos[a, 3];
-					CdSexoPartic = ativos[a, 4];
-					VlSalEntPrev = ativos[a, 7];
-					DtIniContInss = ativos[a, 8];
-					TmpInssCalcu = ativos[a, 9];
-					TmpContribInss = ativos[a, 10];
-					VlBenefiInss = ativos[a, 11];
-					IddIniApoInss = ativos[a, 12];
-					i = ativos[a, 13];
-					j = ativos[a, 14];
-					fator_reajuste_salarial = ativos[a, 15];
-					PeContrParti = ativos[a, 16];
-					PeContrPatro = ativos[a, 17];
-					CdAutoPatroc = ativos[a, 18];
-
-					ex = fatores[a, 1];
-					apx = fatores[a, 2];
-					pxs = fatores[a, 3];
-					taxa_risco_partic = fatores[a, 5];
-					taxa_risco_patroc = fatores[a, 6];
-
-					ConParSdo = 0;
-					ConPatSdo = 0;
-					FtRenVit = 0;
-					FtPrevideAtc = 0;
-					SalConPrj = 0;
-					pxs_px1s = 0;
-
-					if (&CdPlanBen = 2) then do;
-						VlSdoConPart = 0;
-						VlSdoConPatr = 0;
-						SalBenefInss = 0;
-						beneficioInss = 0;
-					end;
-					else if (t = 0) then do;
-						VlSdoConPart = ativos[a, 5];
-						VlSdoConPatr = ativos[a, 6];
-						SalBenefInss = 0;
-						beneficioInss = 0;
-
-						*--- para REB e Novo Plano ---*;
-						apx1 = fatores[a, 2];
-						px1s = fatores[a, 3];
-						taxa_juros = fatores[a, 4];
-					end;
-					else if (t > 0) then do;
-						*--- para REB e Novo Plano ---*;
-						apx1 = fatores[a - 1, 2];
-						px1s = fatores[a - 1, 3];
-						taxa_juros = fatores[a - 1, 4];
-					end;
-
-					if (&CdPlanBen ^= 2) then do;
-						*------ Data do calculo na evolucao ------*;
-						DtCalcEvol = INTNX('YEAR', &DtCalAval, t, 'S');
-						*------ Data de aposentadoria de acordo com a idade na evolucao ------*;
-						DtApoEntPrev = INTNX('YEAR', DtNascPartic, i, &vAlignment);
-
-						TmpInssContr = min(TmpInssCalcu + t, TmpContribInss);
-						*------ Salário de contribuicao projetado ------*;
-						SalConPrj = max(0, round(VlSalEntPrev * fator_reajuste_salarial * &FtSalPart, 0.01));
-
-						if (CdAutoPatroc = 0) then
-							SalConPrj = max(0, round(SalConPrj * ((1 + &PrSalPart) ** t), 0.01));
-
-						if (pxs > 0 & px1s > 0) then
-							pxs_px1s = pxs / px1s;
-
-						if (&CdPlanBen = 1) then do;
-							if (CdAutoPatroc = 0) then do;
-								ConParSdo = round(max(0, (GetContribuicao(SalConPrj / &FtSalPart) * &NroBenAno * (1 - apx)) * pxs), 0.01);
-								ConPatSdo = ConParSdo;
-							end;
-
-							VlSdoConPart = max(0, round(VlSdoConPart * pxs_px1s + ConParSdo, 0.01));
-							VlSdoConPatr = 0;
-						end;
-						else if (&CdPlanBen = 4 | &CdPlanBen = 5) then do;
-							ConParSdo = GetContribuicaoPercentual(SalConPrj / &FtSalPart, PeContrParti, taxa_risco_partic, &PC_DESPESA_ADM_PARTICIPANTE, apx, 1);
-							ConParSdo = max(0, round(ConParSdo * pxs, 0.01));
-							
-							ConPatSdo = GetContribuicaoPercentual(SalConPrj / &FtSalPart, PeContrPatro, taxa_risco_patroc, &PC_DESPESA_ADM_PATROCINADORA, apx, 0);
-							ConPatSdo = max(0, round(ConPatSdo * pxs, 0.01));
-
-							if (t > 0) then do;
-								VlSdoConPart = max(0, round(VlSdoConPart * (1 + taxa_juros) * pxs_px1s * (1 - apx1) + cobertura[a - 1, 4] * (1 + taxa_juros), 0.01));
-								VlSdoConPatr = max(0, round(VlSdoConPatr * (1 + taxa_juros) * pxs_px1s * (1 - apx1) + cobertura[a - 1, 5] * (1 + taxa_juros), 0.01));
-							end;
-						end;
-							
-						if ((t = 0 & i > IddIniApoInss) | (i <= IddIniApoInss)) then do;
-							*------ Fator para refletir a média dos 80% maiores salários do inss ------*;
-							ftSlBen80 = GetFatorMediaSalariosInss(max(DtIniContInss, &DatMedSal), DtCalcEvol);
-							*------ Fator previdenciário na data de aposentadoria integral na entidade / fator de transição ------*;
-							auxInssContr = TmpInssContr;
-							FtPrevideAtc = GetFatorPrevidenciario(auxInssContr, ex, i, CdSexoPartic);
-							*------ Salário para efeito de cálculo do inss - aposentadoria por tempo de contribuição ------*;
-							if (VlBenefiInss > 0) then 
-								SalBenefInss = round(VlBenefiInss * &FtInssAss * &FtBenInss, 0.01);
-							else do;
-								SalBenefInss = max(0, min(round(SalConPrj * ftSlBen80, 0.01), round(&TtInssBen * &FtBenInss, 0.01)));
-								SalBenefInss = max(0, max(round(SalBenefInss, 0.01), round(&SalMinimo * &FtBenInss, 0.01)));
-							end;
-							*------ Salário projetado para efeito de cálculo do inss ------*;
-							beneficioInss = CalcSalarioInss(CdSexoPartic, VlBenefiInss, DtApoEntPrev, i, TmpInssContr, SalBenefInss, FtPrevideAtc);
-							beneficioInss = max(0, round(beneficioInss, 0.01));
-						end;
-					end;
-
-					cobertura[a, 1] = IdParticipante;
-					cobertura[a, 2] = t;
-					cobertura[a, 3] = SalConPrj;
-					cobertura[a, 4] = ConParSdo;
-					cobertura[a, 5] = ConPatSdo;
-					cobertura[a, 6] = VlSdoConPart;
-					cobertura[a, 7] = VlSdoConPatr;
-					cobertura[a, 8] = SalBenefInss;
-					cobertura[a, 9] = beneficioInss;
-				END;
-
-				create work.ativos_beneficios_inss from cobertura[colname={'id_participante' 't' 'SalConPrjEvol' 'ConParSdoEvol' 'ConPatSdoEvol' 'VlSdoConPartEvol' 'VlSdoConPatrEvol' 'SalBenefInssEvol' 'SalProjeInssEvol'}];
-					append from cobertura;
-				close work.ativos_beneficios_inss;
-
-				free ativos cobertura;
-			end;*
-		QUIT;
-
-*		%_eg_conditional_dropds(cobertur.ativos_tp&tipoCalculo._s&s.);*;
-*		data cobertur.ativos_tp&tipoCalculo._s&s.;*;
-*			merge work.ativos_idades_cobertura work.ativos_beneficios_inss;*;
-*			by id_participante t;*;
-*			format SalConPrjEvol commax14.2 ConParSdoEvol commax14.2 ConPatSdoEvol commax14.2 VlSdoConPartEvol commax14.2 VlSdoConPatrEvol commax14.2 SalBenefInssEvol commax14.2 SalProjeInssEvol commax14.2;*;
-*		run;*;
-	%end;
-%mend;
-%calculaBeneficioInss1;
-*/
-
-/*
-proc iml;
-	start calculaBeneficiosINSS(beneficio_inss);
-
-		use work.ativos_idades_cobertura;
-			read all var {id_participante t DtNascPartic CdSexoPartic VlSdoConPart VlSdoConPatr VlSalEntPrev DtIniContInss TmpInssCalcu TmpContribInss VlBenefiInss IddIniApoInss IddPartEvol IddConjEvol fator_reajuste_salarial PeContrParti PeContrPatro CdAutoPatroc} into ativos;
-		close work.ativos_idades;
-
-		use work.ativos_fatores_tp&tipoCalculo._s&s.;
-			read all var {ex apxa pxs taxa_juros taxa_risco_partic taxa_risco_patroc} into fatores;
-		close work.ativos_fatores;
-
-		qtdAtivos = nrow(ativos);
-		qtdFatores = nrow(fatores);
-
-		if (qtdAtivos > 0 & qtdFatores > 0 & (qtdAtivos = qtdFatores)) then do;
-			cobertura = J(qtdAtivos, 9, 0);
-			px1s = 0;
-			apx1 = 0;
-
-			DO a = 1 TO qtdAtivos;
-				IdParticipante = ativos[a, 1];
-				t = ativos[a, 2];
-				DtNascPartic = ativos[a, 3];
-				CdSexoPartic = ativos[a, 4];
-				VlSalEntPrev = ativos[a, 7];
-				DtIniContInss = ativos[a, 8];
-				TmpInssCalcu = ativos[a, 9];
-				TmpContribInss = ativos[a, 10];
-				VlBenefiInss = ativos[a, 11];
-				IddIniApoInss = ativos[a, 12];
-				i = ativos[a, 13];
-				j = ativos[a, 14];
-				fator_reajuste_salarial = ativos[a, 15];
-				PeContrParti = ativos[a, 16];
-				PeContrPatro = ativos[a, 17];
-				CdAutoPatroc = ativos[a, 18];
-
-				ex = fatores[a, 1];
-				apx = fatores[a, 2];
-				pxs = fatores[a, 3];
-				taxa_risco_partic = fatores[a, 5];
-				taxa_risco_patroc = fatores[a, 6];
-
-				ConParSdo = 0;
-				ConPatSdo = 0;
-				FtRenVit = 0;
-				FtPrevideAtc = 0;
-				SalConPrj = 0;
-				pxs_px1s = 0;
-
-				if (&CdPlanBen = 2) then do;
-					VlSdoConPart = 0;
-					VlSdoConPatr = 0;
-					SalBenefInss = 0;
-					beneficioInss = 0;
-				end;
-				else if (t = 0) then do;
-					VlSdoConPart = ativos[a, 5];
-					VlSdoConPatr = ativos[a, 6];
-					SalBenefInss = 0;
-					beneficioInss = 0;
-
-					*--- para REB e Novo Plano ---*;
-					apx1 = fatores[a, 2];
-					px1s = fatores[a, 3];
-					taxa_juros = fatores[a, 4];
-				end;
-				else if (t > 0) then do;
-					*--- para REB e Novo Plano ---*;
-					apx1 = fatores[a - 1, 2];
-					px1s = fatores[a - 1, 3];
-					taxa_juros = fatores[a - 1, 4];
-				end;
-
-				if (&CdPlanBen ^= 2) then do;
-					*------ Data do calculo na evolucao ------*;
-					DtCalcEvol = INTNX('YEAR', &DtCalAval, t, 'S');
-					*------ Data de aposentadoria de acordo com a idade na evolucao ------*;
-					DtApoEntPrev = INTNX('YEAR', DtNascPartic, i, &vAlignment);
-
-					TmpInssContr = min(TmpInssCalcu + t, TmpContribInss);
-					*------ Salário de contribuicao projetado ------*;
-					SalConPrj = max(0, round(VlSalEntPrev * fator_reajuste_salarial * &FtSalPart, 0.01));
-
-					if (CdAutoPatroc = 0) then
-						SalConPrj = max(0, round(SalConPrj * ((1 + &PrSalPart) ** t), 0.01));
-
-					if (pxs > 0 & px1s > 0) then
-						pxs_px1s = pxs / px1s;
-
-					if (&CdPlanBen = 1) then do;
-						if (CdAutoPatroc = 0) then do;
-							ConParSdo = round(max(0, (GetContribuicao(SalConPrj / &FtSalPart) * &NroBenAno * (1 - apx)) * pxs), 0.01);
-							ConPatSdo = ConParSdo;
-						end;
-
-						VlSdoConPart = max(0, round(VlSdoConPart * pxs_px1s + ConParSdo, 0.01));
-						VlSdoConPatr = 0;
-					end;
-					else if (&CdPlanBen = 4 | &CdPlanBen = 5) then do;
-						ConParSdo = GetContribuicaoPercentual(SalConPrj / &FtSalPart, PeContrParti, taxa_risco_partic, &PC_DESPESA_ADM_PARTICIPANTE, apx, 1);
-						ConParSdo = max(0, round(ConParSdo * pxs, 0.01));
-						
-						ConPatSdo = GetContribuicaoPercentual(SalConPrj / &FtSalPart, PeContrPatro, taxa_risco_patroc, &PC_DESPESA_ADM_PATROCINADORA, apx, 0);
-						ConPatSdo = max(0, round(ConPatSdo * pxs, 0.01));
-
-						if (t > 0) then do;
-							VlSdoConPart = max(0, round(VlSdoConPart * (1 + taxa_juros) * pxs_px1s * (1 - apx1) + cobertura[a - 1, 4] * (1 + taxa_juros), 0.01));
-							VlSdoConPatr = max(0, round(VlSdoConPatr * (1 + taxa_juros) * pxs_px1s * (1 - apx1) + cobertura[a - 1, 5] * (1 + taxa_juros), 0.01));
-						end;
-					end;
-						
-					if ((t = 0 & i > IddIniApoInss) | (i <= IddIniApoInss)) then do;
-						*------ Fator para refletir a média dos 80% maiores salários do inss ------*;
-						ftSlBen80 = GetFatorMediaSalariosInss(max(DtIniContInss, &DatMedSal), DtCalcEvol);
-						*------ Fator previdenciário na data de aposentadoria integral na entidade / fator de transição ------*;
-						auxInssContr = TmpInssContr;
-						FtPrevideAtc = GetFatorPrevidenciario(auxInssContr, ex, i, CdSexoPartic);
-						*------ Salário para efeito de cálculo do inss - aposentadoria por tempo de contribuição ------*;
-						if (VlBenefiInss > 0) then 
-							SalBenefInss = round(VlBenefiInss * &FtInssAss * &FtBenInss, 0.01);
-						else do;
-							SalBenefInss = max(0, min(round(SalConPrj * ftSlBen80, 0.01), round(&TtInssBen * &FtBenInss, 0.01)));
-							SalBenefInss = max(0, max(round(SalBenefInss, 0.01), round(&SalMinimo * &FtBenInss, 0.01)));
-						end;
-						*------ Salário projetado para efeito de cálculo do inss ------*;
-						beneficioInss = CalcSalarioInss(CdSexoPartic, VlBenefiInss, DtApoEntPrev, i, TmpInssContr, SalBenefInss, FtPrevideAtc);
-						beneficioInss = max(0, round(beneficioInss, 0.01));
-					end;
-				end;
-
-				cobertura[a, 1] = IdParticipante;
-				cobertura[a, 2] = t;
-				cobertura[a, 3] = SalConPrj;
-				cobertura[a, 4] = ConParSdo;
-				cobertura[a, 5] = ConPatSdo;
-				cobertura[a, 6] = VlSdoConPart;
-				cobertura[a, 7] = VlSdoConPatr;
-				cobertura[a, 8] = SalBenefInss;
-				cobertura[a, 9] = beneficioInss;
-			END;
-
-			create work.ativos_beneficios_inss from cobertura[colname={'id_participante' 't' 'SalConPrjEvol' 'ConParSdoEvol' 'ConPatSdoEvol' 'VlSdoConPartEvol' 'VlSdoConPatrEvol' 'SalBenefInssEvol' 'SalProjeInssEvol'}];
-				append from cobertura;
-			close work.ativos_beneficios_inss;
-
-			free ativos cobertura;
-		end;
-	finish;
-
-	store module= calculaBeneficiosINSS;
-quit;
-*/

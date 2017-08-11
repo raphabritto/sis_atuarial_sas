@@ -5,69 +5,63 @@
 		%_eg_conditional_dropds(work.ativos_cobertura_axfa_tp&tipoCalculo._s&s.);
 		PROC IML;
 			use cobertur.ativos_tp&tipoCalculo._s&s.;
-				read all var {id_participante t SalConPrjEvol} into ativos;
+				read all var {id_participante} into id_participante;
+				read all var {t1} into t1;
+				read all var {salario_contrib} into SalConPrj;
 			close cobertur.ativos_tp&tipoCalculo._s&s.;
 
 			use cobertur.ativos_fatores;
-				read all var {qx apxa} into fatores;
+				read all var {qx} into qx;
+				read all var {apxa} into apxa;
 			close cobertur.ativos_fatores;
 
-			qtdObs = nrow(ativos);
+			qtd_ativos = nrow(id_participante);
 
-			if (qtdObs > 0) then do;
-				cobertura_axfa = J(qtdObs, 3, 0);
+			if (qtd_ativos > 0) then do;
+				aux_funeral_ativo = J(qtd_ativos, 1, 0);
 
-				DO a = 1 TO qtdObs;
-					CusNorAuxFunAt = 0;
-
+				DO a = 1 TO qtd_ativos;
 					if (&CdPlanBen = 1) then do;
-						t = ativos[a, 2];
-						SalConPrj = ativos[a, 3];
-
-						qx = fatores[a, 1];
-						apxa = fatores[a, 2];
-
 						*------ Auxílio funeral por morte de ativo/pecúlio por morte ------*;
-						if (t = 0) then do;
-							if (round(apxa, 0.00001) = 1) then
-				        		CusNorAuxFunAt = max(0, round((SalConPrj / &FtSalPart) * qx, 0.01));
+						if (t1[a] = 0) then do;
+							if (round(apxa[a], 0.00001) = 1) then
+				        		aux_funeral_ativo[a] = max(0, round((SalConPrj[a] / &FtSalPart) * qx[a], 0.01));
 							else
-								CusNorAuxFunAt = max(0, round((SalConPrj / &FtSalPart) * qx * (1 - apxa), 0.01));
+								aux_funeral_ativo[a] = max(0, round((SalConPrj[a] / &FtSalPart) * qx[a] * (1 - apxa[a]), 0.01));
 						end;
 					end;
-
-					cobertura_axfa[a, 1] = ativos[a, 1];
-					cobertura_axfa[a, 2] = ativos[a, 2];
-					cobertura_axfa[a, 3] = CusNorAuxFunAt;
 				END;
 
-				create work.ativos_cobertura_axfa_tp&tipoCalculo._s&s. from cobertura_axfa[colname={'id_participante' 't' 'CusNorCobAXFA'}];
-					append from cobertura_axfa;
+				create work.ativos_cobertura_axfa_tp&tipoCalculo._s&s. var {id_participante t1 aux_funeral_ativo};
+					append;
 				close work.ativos_cobertura_axfa_tp&tipoCalculo._s&s.;
 			end;
-
-			free ativos cobertura_axfa fatores;
 		QUIT;
 
-		data cobertur.ativos_tp&tipoCalculo._s&s.;
-			merge cobertur.ativos_tp&tipoCalculo._s&s. work.ativos_cobertura_axfa_tp&tipoCalculo._s&s.;
-			by id_participante t;
-			format CusNorCobAXFA COMMAX14.2;
-		run;
+		%if (%sysfunc(exist(work.ativos_cobertura_axfa_tp&tipoCalculo._s&s.))) %then %do;
+			data cobertur.ativos_tp&tipoCalculo._s&s.;
+				merge cobertur.ativos_tp&tipoCalculo._s&s. work.ativos_cobertura_axfa_tp&tipoCalculo._s&s.;
+				by id_participante t1;
+				format aux_funeral_ativo COMMAX14.2;
+			run;
 
-		%_eg_conditional_dropds(work.ativos_encargo_axfa_tp&tipoCalculo._s&s.);
-		proc summary data = work.ativos_cobertura_axfa_tp&tipoCalculo._s&s.;
-		 class id_participante;
-		 var CusNorCobAXFA;
-		 format CusNorCobAXFA commax18.2;
-		 output out= work.ativos_encargo_axfa_tp&tipoCalculo._s&s. sum=;
-		run;
+			%_eg_conditional_dropds(work.ativos_encargo_axfa_tp&tipoCalculo._s&s.);
+			proc summary data = work.ativos_cobertura_axfa_tp&tipoCalculo._s&s.;
+			 class id_participante;
+			 var aux_funeral_ativo;
+			 format aux_funeral_ativo commax18.2;
+			 output out= work.ativos_encargo_axfa_tp&tipoCalculo._s&s. sum=;
+			run;
 
-		data cobertur.ativos_encargo_axfa_tp&tipoCalculo._s&s.;
-			set work.ativos_encargo_axfa_tp&tipoCalculo._s&s.;
-			if cmiss(id_participante) then delete;
-			drop _TYPE_ _FREQ_;
-		run;
+			data cobertur.ativos_encargo_axfa_tp&tipoCalculo._s&s.;
+				set work.ativos_encargo_axfa_tp&tipoCalculo._s&s.;
+				if cmiss(id_participante) then delete;
+				drop _TYPE_ _FREQ_;
+			run;
+
+			proc delete data = work.ativos_cobertura_axfa_tp&tipoCalculo._s&s. (gennum=all);
+			run;
+		%end;
 	%end;
 %mend;
 %calcCoberturaAxfa;

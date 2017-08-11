@@ -149,8 +149,8 @@
 
 			set temp.taxa_juros;
 
-			u = rand("Uniform");            /* decimal values in (0,1)    */
-			desvio = a + (b - a) * u;       /* decimal values (a,b)       */
+			u = rand("Uniform");
+			desvio = a + (b - a) * u;
 			output;
 
 			format desvio 18.14;
@@ -246,7 +246,7 @@
 					output;
 				end;
 
-				format desvio 18.14;
+				format desvio 8.4;
 			run;
 
 			%do s = 1 %to &numeroCalculos;
@@ -254,7 +254,7 @@
 				data premissa.taxa_beneficio_s&s.(drop= PC_TAXA_REAL_CRESC_BENEFICIO desvio);
 					retain t taxa_beneficio;
 					*call streaminit(123);
-					set work.taxa_salario;
+					set work.taxa_beneficio;
 
 					taxa_beneficio = max(0, RAND('NORMAL', PC_TAXA_REAL_CRESC_BENEFICIO, desvio));
 					output;

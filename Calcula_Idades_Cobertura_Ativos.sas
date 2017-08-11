@@ -2,47 +2,44 @@
 %_eg_conditional_dropds(work.ativos_idades_cobertura);
 PROC IML;
 	use partic.ATIVOS;
-		read all var {id_participante IddPartiCalc IddConjuCalc} into ativos;
+		read all var {id_participante} into id_partic;
+		read all var {idade_partic} into idade_partic;
+		read all var {idade_conjug} into idade_conjug;
 	close partic.ATIVOS;
 
-	qtdAtivos = nrow(ativos);
+	qtd_ativos = nrow(id_partic);
 
-	if (qtdAtivos > 0) then do;
+	if (qtd_ativos > 0) then do;
 		qtd_evol = 0;
 		b = 1;
 
-		DO a = 1 TO qtdAtivos;
-			IddPartiCalc = ativos[a, 2];
-			qtd_evol = qtd_evol + ((&MaxAge - IddPartiCalc) + 1);
+		DO a = 1 TO qtd_ativos;
+			qtd_evol = qtd_evol + ((&MaxAge - idade_partic[a]) + 1);
 		END;
 
-		cobertura = J(qtd_evol, 4, 0);
+		id_participante		= J(qtd_evol, 1, 0);
+		t1		 			= J(qtd_evol, 1, 0);
+		idade_partic_cober 	= J(qtd_evol, 1, 0);
+		idade_conjug_cober 	= J(qtd_evol, 1, 0);
 
-		DO a = 1 TO qtdAtivos;
-			IdParticipante = ativos[a, 1];
-			IddPartiCalc = ativos[a, 2];
-			IddConjuCalc = ativos[a, 3];
-
+		DO a = 1 TO qtd_ativos;
 			*------ Projeta os benefícios até a idade de aposentadoria do plano -1 ------*;
-			DO t = 0 to (&MaxAge - IddPartiCalc);
-				*------ Idade do participante na evolucao ------*;
-				i = min(IddPartiCalc + t, &MaxAge);
-				*------ Idade do conjuce na evolucao ------*;
-				j = min(IddConjuCalc + t, &MaxAge);
+			DO t = 0 to (&MaxAge - idade_partic[a]);
+				id_participante[b] = id_partic[a];
+				t1[b] = t;
 
-				cobertura[b, 1] = IdParticipante;
-				cobertura[b, 2] = t;
-				cobertura[b, 3] = i;
-				cobertura[b, 4] = j;
+				*------ Idade do participante na evolucao ------*;
+				idade_partic_cober[b] = min(idade_partic[a] + t, &MaxAge);
+
+				*------ Idade do conjuce na evolucao ------*;
+				idade_conjug_cober[b] = min(idade_conjug[a] + t, &MaxAge);
 				b = b + 1;
 			END;
 		END;
 
-		create work.ativos_idades_cobertura from cobertura[colname={'id_participante' 't' 'IddParticCobert' 'IddConjugCobert'}];
-			append from cobertura;
+		create work.ativos_idades_cobertura var {id_participante t1 idade_partic_cober idade_conjug_cober};
+			append;
 		close work.ativos_idades_cobertura;
-
-		free cobertura ativos;
 	end;
 QUIT;
 
@@ -51,14 +48,14 @@ data cobertur.ativos;
 	retain id_participante t;
 	merge partic.ativos work.ativos_idades_cobertura;
 	by id_participante;
-	drop CdSitCadPart NoNomePartic CdEstCivPart EstCivPart CdExDirPatro DtAdmPatroci DtAssEntPrev CdElegApoEsp CdParEntPrev FL_DEFICIENTE NuMatrOrigem FlgPensionista FL_MIGRADO IDPLANOPREV VL_RESERVA_BPD CD_SITUACAO_FUNDACAO VlBenefiPrev CdTipoBenefi DtIniBenPrev DtNascConjug CdSexoFilJov DtNascFilJov CdSexoFilInv DtNascFilInv DtIniApoInss DtApoEntPrev IddIniciInss CD_SITUACAO_PATROC DT_OPCAO_BPD VL_SALDO_PORTADO;
+	drop CdSitCadPart NoNomePartic CdEstCivPart DtAdmPatroci DtAssEntPrev FL_DEFICIENTE NuMatrOrigem FL_MIGRADO IDPLANOPREV VL_RESERVA_BPD CD_SITUACAO_FUNDACAO VlBenefiPrev CdTipoBenefi DtIniBenPrev DtNascConjug DtIniApoInss DtApoEntPrev IddIniciInss CD_SITUACAO_PATROC VL_SALDO_PORTADO;
 run;
 
 %_eg_conditional_dropds(cobertur.ativos_fatores);
 proc sql;
 	create table cobertur.ativos_fatores as
-	select t1.id_participante,
-		   t1.t,
+	select ta.id_participante,
+		   ta.t1,
 		   tsn.ex,
 		   tsn.apxa,
 		   max(0, (tsa1.lxs / tsa2.lxs)) format=12.8 as pxs,
@@ -74,175 +71,164 @@ proc sql;
 		   tsa1.qxi,
 		   tsa1.wx,
 		   max(0, (tsn.Mxii / tsn.'Dxii*'n)) format=12.8 as Axii,
-		   max(0, ((((tsnc.Nxcb / tsnc.Dxcb) - &Fb) - ((n2.njxx / d2.djxx) - &Fb)) * t1.PrbCasado)) format=12.8 as amix,
+		   max(0, ((((tsnc.Nxcb / tsnc.Dxcb) - &Fb) - ((n2.njxx / d2.djxx) - &Fb)) * ta.probab_casado)) format=12.8 as amix,
 		   txrp1.taxa_risco as taxa_risco_partic,
 		   txrp2.taxa_risco as taxa_risco_patroc
-	from cobertur.ativos t1
-	inner join tabuas.tabuas_servico_normal tsn on (t1.CdSexoPartic = tsn.Sexo and t1.IddParticCobert = tsn.Idade and tsn.t = min(t1.t, &maxTaxaJuros))
-	inner join tabuas.tabuas_servico_normal tsnc on (t1.CdSexoConjug = tsnc.Sexo and t1.IddConjugCobert = tsnc.Idade and tsnc.t = min(t1.t, &maxTaxaJuros))
-	inner join tabuas.tabuas_servico_ajustada tsa1 on (t1.CdSexoPartic = tsa1.Sexo and t1.IddParticCobert = tsa1.Idade and tsa1.t = min(t1.t, &maxTaxaJuros))
-	inner join tabuas.tabuas_servico_ajustada tsa2 on (t1.CdSexoPartic = tsa2.Sexo and t1.IddPartiCalc = tsa2.Idade and tsa2.t = min(t1.t, &maxTaxaJuros))
-	inner join tabuas.tabuas_pensao_njxx n1 on (t1.CdSexoPartic = n1.sexo and t1.IddParticCobert = n1.idade_x and t1.IddConjugCobert = n1.idade_j and n1.tipo = 1 and n1.t = min(t1.t, &maxTaxaJuros))
-	inner join tabuas.tabuas_pensao_djxx d1 on (t1.CdSexoPartic = d1.sexo and t1.IddParticCobert = d1.idade_x and t1.IddConjugCobert = d1.idade_j and d1.tipo = 1 and d1.t = min(t1.t, &maxTaxaJuros))
-	inner join tabuas.tabuas_pensao_njxx n2 on (t1.CdSexoPartic = n2.sexo and t1.IddParticCobert = n2.idade_x and t1.IddConjugCobert = n2.idade_j and n2.tipo = 2 and n2.t = min(t1.t, &maxTaxaJuros))
-	inner join tabuas.tabuas_pensao_djxx d2 on (t1.CdSexoPartic = d2.sexo and t1.IddParticCobert = d2.idade_x and t1.IddConjugCobert = d2.idade_j and d2.tipo = 2 and d2.t = min(t1.t, &maxTaxaJuros))
-	inner join premissa.taxa_risco txrp1 on (txrp1.t = min(t1.t, &maxTaxaRiscoPartic) and txrp1.id_responsabilidade = 1)
-	inner join premissa.taxa_risco txrp2 on (txrp2.t = min(t1.t, &maxTaxaRiscoPatroc) and txrp2.id_responsabilidade = 2)
-	order by t1.id_participante, t1.t;
+	from cobertur.ativos ta
+	inner join tabuas.tabuas_servico_normal tsn on (ta.sexo_partic = tsn.Sexo and ta.idade_partic_cober = tsn.Idade and tsn.t = min(ta.t1, &maxTaxaJuros))
+	inner join tabuas.tabuas_servico_normal tsnc on (ta.sexo_conjug = tsnc.Sexo and ta.idade_conjug_cober = tsnc.Idade and tsnc.t = min(ta.t1, &maxTaxaJuros))
+	inner join tabuas.tabuas_servico_ajustada tsa1 on (ta.sexo_partic = tsa1.Sexo and ta.idade_partic_cober = tsa1.Idade and tsa1.t = min(ta.t1, &maxTaxaJuros))
+	inner join tabuas.tabuas_servico_ajustada tsa2 on (ta.sexo_partic = tsa2.Sexo and ta.idade_partic = tsa2.Idade and tsa2.t = min(ta.t1, &maxTaxaJuros))
+	inner join tabuas.tabuas_pensao_njxx n1 on (ta.sexo_partic = n1.sexo and ta.idade_partic_cober = n1.idade_x and ta.idade_conjug_cober = n1.idade_j and n1.tipo = 1 and n1.t = min(ta.t1, &maxTaxaJuros))
+	inner join tabuas.tabuas_pensao_djxx d1 on (ta.sexo_partic = d1.sexo and ta.idade_partic_cober = d1.idade_x and ta.idade_conjug_cober = d1.idade_j and d1.tipo = 1 and d1.t = min(ta.t1, &maxTaxaJuros))
+	inner join tabuas.tabuas_pensao_njxx n2 on (ta.sexo_partic = n2.sexo and ta.idade_partic_cober = n2.idade_x and ta.idade_conjug_cober = n2.idade_j and n2.tipo = 2 and n2.t = min(ta.t1, &maxTaxaJuros))
+	inner join tabuas.tabuas_pensao_djxx d2 on (ta.sexo_partic = d2.sexo and ta.idade_partic_cober = d2.idade_x and ta.idade_conjug_cober = d2.idade_j and d2.tipo = 2 and d2.t = min(ta.t1, &maxTaxaJuros))
+	inner join premissa.taxa_risco txrp1 on (txrp1.t = min(ta.t1, &maxTaxaRiscoPartic) and txrp1.id_responsabilidade = 1)
+	inner join premissa.taxa_risco txrp2 on (txrp2.t = min(ta.t1, &maxTaxaRiscoPatroc) and txrp2.id_responsabilidade = 2)
+	order by ta.id_participante, ta.t1;
 run; quit;
 
-/*
-%macro fatoresCobertura;
-	%do s = 1 %to &numeroCalculos;
-		%_eg_conditional_dropds(cobertur.ativos_fatores_tp&tipoCalculo._s&s.);
-
-		%if &tipoCalculo = 1 %then %do;
-			proc sql;
-				create table cobertur.ativos_fatores_tp&tipoCalculo._s&s. as
-				select t1.*, 
-					   t2.taxa_juros
-				from work.ativos_fatores t1
-				inner join premissa.taxa_juros t2 on (t2.t = t1.t)
-				order by t1.id_participante, t1.t;
-			run;
-		%end;
-		%else %if &tipoCalculo = 2 %then %do;
-			proc sql;
-				create table cobertur.ativos_fatores_tp&tipoCalculo._s&s. as
-				select t1.*, 
-					   t2.taxa_juros
-				from work.ativos_fatores t1
-				inner join premissa.taxa_juros_s&s. t2 on (t2.t = t1.t)
-				order by t1.id_participante, t1.t;
-			run;
-		%end;
-	%end;
-%mend;
-%fatoresCobertura;
-*/
-
-/*
-%macro unionTaxas;
-	%do s = 1 %to &numeroCalculos;
-		%_eg_conditional_dropds(cobertur.ativos_fatores_tp&tipoCalculo._s&s.);
-		data cobertur.ativos_fatores_tp&tipoCalculo._s&s.;
-			merge work.ativos_fatores temp.ativos_taxa_juros_tp&tipoCalculo._s&s.;
-			by id_participante t;
-		run;
-
-		%if (&tipoCalculo = 2) %then %do;
-			data cobertur.ativos_fatores_tp&tipoCalculo._s&s.;
-				merge cobertur.ativos_fatores_tp&tipoCalculo._s&s. temp.ativos_fatores_estoc_tp&tipoCalculo._s&s.(keep= id_participante t vivo valido ligado ativo desligado);
-				by id_participante t;
-			run;
-		%end;
-	%end;
-%mend;
-%unionTaxas;
-*/
 
 %macro sorteioFatoresEstocastico;
 	%do s = 1 %to &numeroCalculos;
 		%if (&tipoCalculo = 2) %then %do;
 			%_eg_conditional_dropds(cobertur.ativos_fatores_estoc_s&s.);
 			PROC IML;
-				load module = drawSobrevivencia;
-				load module = drawValidezRotatividade;
+				load module = sorteioEstocastico;
 
 				use cobertur.ativos;
-					read all var {id_participante t CdSexoPartic IddParticCobert} into ativos;
+					read all var {id_participante} into id_participante;
+					read all var {t1} into t1;
+					read all var {sexo_partic} into sexo;
+					read all var {idade_partic_cober} into idade;
 				close cobertur.ativos;
 
 				use tabuas.tabuas_servico_normal;
-					read all var {qx ix qxi wx apxa} into tabua_f where (t = 0 & sexo = 1);
-					read all var {qx ix qxi wx apxa} into tabua_m where (t = 0 & sexo = 2);
-				close;
+					read all var {qx} into qx_f where (t = 0 & Sexo = 1);
+					read all var {ix} into ix_f where (t = 0 & Sexo = 1);
+					read all var {qxi} into qxi_f where (t = 0 & Sexo = 1);
+					read all var {wx} into wx_f where (t = 0 & Sexo = 1);
+					read all var {apxa} into apxa_f where (t = 0 & Sexo = 1);
 
-				qtdAtivos = nrow(ativos);
+					read all var {qx} into qx_m where (t = 0 & Sexo = 2);
+					read all var {ix} into ix_m where (t = 0 & Sexo = 2);
+					read all var {qxi} into qxi_m where (t = 0 & Sexo = 2);
+					read all var {wx} into wx_m where (t = 0 & Sexo = 2);
+					read all var {apxa} into apxa_m where (t = 0 & Sexo = 2);
+				close tabuas.tabuas_servico_normal;
 
-				if (qtdAtivos > 0) then do;
-					estocastico = J(qtdAtivos, 10, 0);
+				qtd_partic = nrow(id_participante);
 
-					DO a = 1 TO qtdAtivos;
-						id_participante = ativos[a, 1];
-						t = ativos[a, 2];
-						sexo = ativos[a, 3];
-						idade = ativos[a, 4];
+				if (qtd_partic > 0) then do;
+					vivo = J(qtd_partic, 1, 0);
+					ativo = J(qtd_partic, 1, 0);
+					valido = J(qtd_partic, 1, 0);
+					ligado = J(qtd_partic, 1, 0);
 
-						if (sexo = 1) then do;
-							qx	= tabua_f[idade + 1, 1];
-							ix	= tabua_f[idade + 1, 2];
-							qxi = tabua_f[idade + 1, 3];
-							wx 	= tabua_f[idade + 1, 4];
-							apx = tabua_f[idade + 1, 5];
+					morto = J(qtd_partic, 1, 0);
+					aposentado = J(qtd_partic, 1, 0);
+					invalido = J(qtd_partic, 1, 0);
+					desligado = J(qtd_partic, 1, 0);
+
+					DO a = 1 TO qtd_partic;
+						if (sexo[a] = 1) then do;
+							qx  = qx_f[idade[a] + 1];
+							ix	= ix_f[idade[a] + 1];
+							qxi = qxi_f[idade[a] + 1];
+							wx 	= wx_f[idade[a] + 1];
+							apx = apxa_f[idade[a] + 1];
 						end;
 						else do;
-							qx	= tabua_m[idade + 1, 1];
-							ix	= tabua_m[idade + 1, 2];
-							qxi = tabua_m[idade + 1, 3];
-							wx 	= tabua_m[idade + 1, 4];
-							apx = tabua_m[idade + 1, 5];
+							qx  = qx_m[idade[a] + 1];
+							ix	= ix_m[idade[a] + 1];
+							qxi = qxi_m[idade[a] + 1];
+							wx 	= wx_m[idade[a] + 1];
+							apx = apxa_m[idade[a] + 1];
 						end;
 
-						prob_sobrev = 0;
-
-						if (t = 0) then do;
-							tipoAposentadoria = 0;
-						end;
-
-						isValido = drawValidezRotatividade(t, ix, isValido);
-						isAtivo = drawValidezRotatividade(t, apx, isAtivo);
-
-						if (isValido = 1 & isAtivo = 0 & tipoAposentadoria = 0) then
-							tipoAposentadoria = 1;
-						else if (isValido = 0 & isAtivo = 0 & tipoAposentadoria = 0) then
-							tipoAposentadoria = 2;
-
-						if ((isValido = 1 & tipoAposentadoria = 0) | tipoAposentadoria = 1) then
-							prob_sobrev = qx;
+						*--- sorteio sobrevivencia ---*;
+						if (t1[a] = 0) then 
+							vivo[a] = sorteioEstocastico(qx, 1);
+						else if (valido[a - 1] = 1) then
+							vivo[a] = sorteioEstocastico(qx, vivo[a - 1]);
 						else
-							prob_sobrev = qxi;
+							vivo[a] = sorteioEstocastico(qxi, vivo[a - 1]);
 
-						isVivo = drawSobrevivencia(t, idade, prob_sobrev, isVivo);
-						
-						isParticipante = drawValidezRotatividade(t, wx, isParticipante);
+						*--- sorteio aposentadoria ---*;
+						if (t1[a] = 0) then
+							ativo[a] = sorteioEstocastico(apx, 1);
+						else
+							ativo[a] = sorteioEstocastico(apx, ativo[a - 1]);
 
-						isMorto = 0;
-						isAposentadoria = 0;
-						isInvalido = 0;
-						isDesligado = 0;
+							*--- sorteio invalidez ---*;
+						if (t1[a] = 0) then
+							valido[a] = sorteioEstocastico(ix, 1);
+						else
+							valido[a] = sorteioEstocastico(ix, valido[a - 1]);
 
-						if (t > 0) then do;
-							if (isAtivo ^= estocastico[a - 1, 6]) then
-								isAposentadoria = 1;
+						if(t1[a] = 0) then
+							ligado[a] = sorteioEstocastico(wx, 1);
+						else
+							ligado[a] = sorteioEstocastico(wx, ligado[a - 1]);
 
-							if (isVivo ^= estocastico[a - 1, 3]) then
-								isMorto = 1;
-
-							if (isValido ^= estocastico[a - 1, 4]) then
-								isInvalido = 1;
-
-							if (isParticipante ^= estocastico[a - 1, 5]) then
-								isDesligado = 1;
+						if (t1[a] = 0) then do;
+							if (vivo[a] = 0) then do;
+								ativo[a] = 1;
+								valido[a] = 1;
+								ligado[a] = 1;
+							end;
+							else if (ativo[a] = 0) then do;
+								valido[a] = 1;
+								ligado[a] = 1;
+							end;
+							else if (valido[a] = 0) then
+								ligado[a] = 1;
+						end;
+						else do;
+							if (vivo[a] = 0 & (vivo[a - 1] = 1 & ativo[a - 1] = 1 & valido[a - 1] = 1 & ligado[a - 1] = 1)) then do;
+								ativo[a] = 1;
+								valido[a] = 1;
+								ligado[a] = 1;
+							end;
+							else if (ativo[a] = 0 & (vivo[a - 1] = 1 & ativo[a - 1] = 1 & valido[a - 1] = 1 & ligado[a - 1] = 1)) then do;
+								valido[a] = 1;
+								ligado[a] = 1;
+							end;
+							else if (valido[a] = 0 & (vivo[a - 1] = 1 & ativo[a - 1] = 1 & valido[a - 1] = 1 & ligado[a - 1] = 1)) then
+								ligado[a] = 1;
 						end;
 
-						estocastico[a, 1] = id_participante;
-						estocastico[a, 2] = t;
-						estocastico[a, 3] = isVivo;
-						estocastico[a, 4] = isValido;
-						estocastico[a, 5] = isParticipante;
-						estocastico[a, 6] = isAtivo;
-						estocastico[a, 7] = isAposentadoria;
-						estocastico[a, 8] = isMorto;
-						estocastico[a, 9] = isInvalido;
-						estocastico[a, 10] = isDesligado;
+						if (t1[a] = 0) then do;
+							if (ativo[a] = 0) then
+								aposentado[a] = 1;
+
+							if (vivo[a] = 0) then
+								morto[a] = 1;
+
+							if (valido[a] = 0) then
+								invalido[a] = 1;
+
+							if (ligado[a] = 0) then
+								desligado[a] = 1;
+						end;
+						else do;
+							if (ativo[a] ^= ativo[a - 1]) then
+								aposentado[a] = 1;
+
+							if (vivo[a] ^= vivo[a - 1]) then
+								morto[a] = 1;
+
+							if (valido[a] ^= valido[a - 1]) then
+								invalido[a] = 1;
+
+							if (ligado[a] ^= ligado[a - 1]) then
+								desligado[a] = 1;
+						end;
 					END;
 
-					create cobertur.ativos_fatores_estoc_s&s. from estocastico[colname={'id_participante' 't' 'Vivo' 'Valido' 'Ligado' 'Ativo' 'Aposentadoria' 'Morto' 'Invalido' 'Desligado'}];
-						append from estocastico;
+					create cobertur.ativos_fatores_estoc_s&s. var {id_participante t1 vivo ativo valido ligado morto aposentado invalido desligado};
+						append;
 					close cobertur.ativos_fatores_estoc_s&s.;
-
-					free estocastico ativos tabua_f tabua_m;
 				end;
 			QUIT;
 		%end;
@@ -250,8 +236,6 @@ run; quit;
 %mend;
 %sorteioFatoresEstocastico;
 
-
-/*proc datasets library=temp kill memtype=data nolist;*/
 proc datasets library=work kill memtype=data nolist;
 	run;
 quit;

@@ -241,13 +241,13 @@ QUIT;
 
 
 PROC IML;
-start drawValidezRotatividade(t, probabilidade, isValido);
+start drawValidezRotatividade(probabilidade, isValido);
 	resultado = 0;
 
-	if (t = 0) then do;
-		resultado = 1;
-	end;
-	else if (isValido = 1) then do;
+/*	if (t = 0) then do;*/
+/*		resultado = 1;*/
+/*	end;*/
+	if (isValido = 1) then do;
 		probabilidade = max(0, min(1, 1 - probabilidade));
 
 		if (probabilidade = 1) then
@@ -255,7 +255,7 @@ start drawValidezRotatividade(t, probabilidade, isValido);
 		else if (probabilidade = 0) then
 			resultado = 0;
 		else
-			resultado = ranbin(-1055, 1, probabilidade);
+			resultado = ranbin(-563, 1, probabilidade);
 	end;
 
 	return (resultado);
@@ -265,13 +265,13 @@ finish;
 QUIT;
 
 PROC IML;
-start drawSobrevivencia(t, idade, probabilidade, isVivo);
+start drawSobrevivencia(probabilidade, isVivo);
 	resultado = 0;
 
-	if (t = 0) then do;
-		resultado = 1;
-	end;
-	else if (idade < &MaxAge & isVivo = 1) then do;
+/*	if (t = 0) then do;*/
+/*		resultado = 1;*/
+/*	end;*/
+	if (isVivo = 1) then do;
 		probabilidade = max(0, min(1, 1 - probabilidade));
 
 		if (probabilidade = 1) then
@@ -286,4 +286,26 @@ start drawSobrevivencia(t, idade, probabilidade, isVivo);
 finish;
 
 	store module = drawSobrevivencia;
+QUIT;
+
+
+PROC IML;
+start sorteioEstocastico(probabilidade, situacao);
+	resultado = 0;
+
+	if (situacao = 1) then do;
+		probabilidade = max(0, min(1, 1 - probabilidade));
+
+		if (probabilidade = 1) then
+			resultado = 1;
+		else if (probabilidade = 0) then
+			resultado = 0;
+		else
+			resultado = ranbin(-561, 1, probabilidade);
+	end;
+
+	return (resultado);
+finish;
+
+	store module = sorteioEstocastico;
 QUIT;

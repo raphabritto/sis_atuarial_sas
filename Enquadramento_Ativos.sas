@@ -30,172 +30,161 @@
 %_eg_conditional_dropds(work.ativos_enquadramento);
 PROC IML;
 	USE partic.ATIVOS;
-		read all var {Id_Participante DtNascPartic CdSexoPartic CdPatrocPlan DtAdmPatroci DtAssEntPrev PeFatReduPbe CdParEntPrev DtAdesaoPlan VlSalEntPrev PeContrParti PeContrPatro VlSdoConPart VlSdoConPatr VlBenSaldado DtIniBenInss VlBenefiInss DtNascConjug CdSexoConjug DtNascFilJov CdSexoFilJov DtNascFilInv CdSexoFilInv} into ativos;
+		read all var {id_participante} into id_participante;
+		read all var {DtNascPartic} into data_nasc_partic;
+		read all var {CdSexoPartic} into sexo_partic;
+		read all var {CdPatrocPlan} into CdPatrocPlan;
+		read all var {DtAdmPatroci} into DtAdmPatroci;
+		read all var {DtAssEntPrev} into DtAssEntPrev;
+		read all var {PeFatReduPbe} into PeFatReduPbe;
+/*		read all var {CdParEntPrev} into CdParEntPrev;*/
+		read all var {DtAdesaoPlan} into DtAdesaoPlan;
+		read all var {VlSalEntPrev} into VlSalEntPrev;
+		read all var {PeContrParti} into PeContrParti;
+		read all var {PeContrPatro} into PeContrPatro;
+		read all var {VlSdoConPart} into VlSdoConPart;
+		read all var {VlSdoConPatr} into VlSdoConPatr;
+		read all var {VlBenSaldado} into VlBenSaldado;
+		read all var {DtIniBenInss} into DtIniBenInss;
+		read all var {VlBenefiInss} into VlBenefiInss;
+		read all var {DtNascConjug} into DtNascConjug;
+		read all var {CdSexoConjug} into sexo_conjug;
 	CLOSE partic.ATIVOS;
 
-	qtdObs = nrow(ativos);
+	qtdObs = nrow(id_participante);
 
 	if (qtdObs > 0) then do;
-		enquadramento = J(qtdObs, 20, 0);
+		*enquadramento = J(qtdObs, 20, 0);
+
+		idade_partic	= J(qtdObs, 1, .);
+		idade_conjug 	= J(qtdObs, 1, .);
+		IddApoEntPre 	= J(qtdObs, 1, 0);
+		IddIniciInss 	= J(qtdObs, 1, 0);
+		IddAdmPatroc	= J(qtdObs, 1, .);
+		IddAssEntPre	= J(qtdObs, 1, .);
+		TmpContribInss 	= J(qtdObs, 1, 0);
+		TmpInssTotal 	= J(qtdObs, 1, 0);
+		DtIniApoInss 	= J(qtdObs, 1, .);
+		DifConjug 		= J(qtdObs, 1, 0);
+		IddApoEntPre 	= J(qtdObs, 1, 0);
+		IddIniciInss 	= J(qtdObs, 1, 0);
+		TmpContribInss	= J(qtdObs, 1, 0);
+		DifConjug 		= J(qtdObs, 1, 0);
+		probab_casado 	= J(qtdObs, 1, 0);
+		TmpPlanoRest 	= J(qtdObs, 1, 0);
+		DtIniContInss	= J(qtdObs, 1, .);
+		IddIniApoInss	= J(qtdObs, 1, .);
+		TmpPlanoPrev	= J(qtdObs, 1, .);
+		DtApoEntPrev	= J(qtdObs, 1, .);
+		TmpInssCalcu	= J(qtdObs, 1, 0);
+		TmpInssResto	= J(qtdObs, 1, 0);
+		TmpAdmIns		= J(qtdObs, 1, 0);
 
 		*---- início do loop para correr todas as linhas da tabela de dados ----*;
 		DO n = 1 TO qtdObs;
-			idParticipante = ativos[n, 1];
-			DtNascPartic = ativos[n, 2];
-			CdSexoPartic = ativos[n, 3];
-			CdPatrocPlan = ativos[n, 4];
-			DtAdmPatroci = ativos[n, 5];
-			DtAssEntPrev = ativos[n, 6];
-			PeFatReduPbe = ativos[n, 7];
-			CdParEntPrev = ativos[n, 8];
-			DtAdesaoPlan = ativos[n, 9];
-			*VlSalEntPrev = ativos[n, 10];
-			PeContrParti = ativos[n, 11];
-			PeContrPatro = ativos[n, 12];
-			VlSdoConPart = ativos[n, 13];
-			VlSdoConPatr = ativos[n, 14];
-			VlBenSaldado = ativos[n, 15];
-			DtIniBenInss = ativos[n, 16];
-			VlBenefiInss = ativos[n, 17];
-			DtNascConjug = ativos[n, 18];
-			CdSexoConjug = ativos[n, 19];
-
-			IddConjuCalc = .;
-
-			IddApoEntPre = 0;
-			IddIniciInss = 0;
-			TmpContribInss = 0;
-			TmpInssTotal = 0;
-			DtIniApoInss = .;
-			DifConjug = 0;
-
-			if (CdSexoPartic = 1) then do;
-				IddApoEntPre = &NR_IDADE_INI_APOS_FEM;
-				IddIniciInss = &NR_IDADE_INI_CONT_INSS_FEM;
-				TmpContribInss = &NR_TEMPO_CONT_INSS_FEM;
-				DifConjug = &NR_DIFERENCIA_IDADE_CONJ_FEM;
-				PrbCasado = &PC_PROB_PARTIC_CAS_APOS_FEM;
+			if (sexo_partic[n] = 1) then do;
+				IddApoEntPre[n] 	= &NR_IDADE_INI_APOS_FEM;
+				IddIniciInss[n] 	= &NR_IDADE_INI_CONT_INSS_FEM;
+				TmpContribInss[n] 	= &NR_TEMPO_CONT_INSS_FEM;
+				DifConjug[n] 		= &NR_DIFERENCIA_IDADE_CONJ_FEM;
+				probab_casado[n] 		= &PC_PROB_PARTIC_CAS_APOS_FEM;
 			end;
 			else do;
-				IddApoEntPre = &NR_IDADE_INI_APOS_MAS;
-				IddIniciInss = &NR_IDADE_INI_CONT_INSS_MAS;
-				TmpContribInss = &NR_TEMPO_CONT_INSS_MAS;
-				DifConjug = &NR_DIFERENCIA_IDADE_CONJ_MAS;
-				PrbCasado = &PC_PROB_PARTIC_CAS_APOS_MAS;
+				IddApoEntPre[n] 	= &NR_IDADE_INI_APOS_MAS;
+				IddIniciInss[n] 	= &NR_IDADE_INI_CONT_INSS_MAS;
+				TmpContribInss[n] 	= &NR_TEMPO_CONT_INSS_MAS;
+				DifConjug[n] 		= &NR_DIFERENCIA_IDADE_CONJ_MAS;
+				probab_casado[n] 		= &PC_PROB_PARTIC_CAS_APOS_MAS;
 			end;
 
 			*------ idade do ativos na data do cálculo ------*;
-			IddPartiCalc = round(yrdif(DtNascPartic, &DtCalAval, &vBasis));
-/*			IddPartiFrac = round(yrdif(DtNascPartic, &DtCalAval, &vBasis), 0.00000001);*/
+			idade_partic[n] = round(yrdif(data_nasc_partic[n], &DtCalAval, &vBasis));
 
 			*------ idade do ativos na data de admissão na patrocinadora ------*;
-	        IddAdmPatroc = round(yrdif(DtNascPartic, DtAdmPatroci, &vBasis));
-/*	        IddAdmFracao = round(yrdif(DtNascPartic, DtAdmPatroci, &vBasis), 0.00000001);*/
+	        IddAdmPatroc[n] = round(yrdif(data_nasc_partic[n], DtAdmPatroci[n], &vBasis));
 
 			*------ idade do ativos na data de associação na entidade ------*;
-	    	IddAssEntPre = round(yrdif(DtNascPartic, DtAssEntPrev, &vBasis));
+	    	IddAssEntPre[n] = round(yrdif(data_nasc_partic[n], DtAssEntPrev[n], &vBasis));
 
 			*------ idade de início no INSS ------*;
-			IddIniciInss = min(IddIniciInss, IddAdmPatroc);
+			IddIniciInss[n] = min(IddIniciInss[n], IddAdmPatroc[n]);
 
 			*------ data de início da contribuicao INSS ------*;
-			DtIniContInss = INTNX('YEAR', DtNascPartic, IddIniciInss, &vAlignment);
+			DtIniContInss[n] = INTNX('YEAR', data_nasc_partic[n], IddIniciInss[n], &vAlignment);
 
 			*------ data de inicio do beneficio INSS - elegibilidade à aposentadoria integral no INSS ------*;
-			if (DtIniBenInss = .) then do;
-				DtIniApoInss = INTNX('YEAR', DtIniContInss, TmpContribInss, &vAlignment);
-				DtIniApoInss = max(DtIniApoInss, &DtCalAval);
+			if (DtIniBenInss[n] = .) then do;
+				DtIniApoInss[n] = INTNX('YEAR', DtIniContInss[n], TmpContribInss[n], &vAlignment);
+				DtIniApoInss[n] = max(DtIniApoInss[n], &DtCalAval);
 			end;
 			else
-				DtIniApoInss = DtIniBenInss;
+				DtIniApoInss[n] = DtIniBenInss[n];
 
 			*------ idade na aposentadoria integral no INSS ------*;
-			IddIniApoInss = round(yrdif(DtNascPartic, DtIniApoInss, &vBasis));
+			IddIniApoInss[n] = round(yrdif(data_nasc_partic[n], DtIniApoInss[n], &vBasis));
 
 			*------ tempo de vinculação à patrocinadora ------*;
 			if (&CdPlanBen = 1) then
-				TmpPlanoPrev = round(yrdif(DtAdmPatroci, &DtCalAval, &vBasis), 0.00000001);
+				TmpPlanoPrev[n] = round(yrdif(DtAdmPatroci[n], &DtCalAval, &vBasis), 0.00000001);
 			else
-				TmpPlanoPrev = round(yrdif(DtAssEntPrev, &DtCalAval, &vBasis), 0.00000001);
+				TmpPlanoPrev[n] = round(yrdif(DtAssEntPrev[n], &DtCalAval, &vBasis), 0.00000001);
 
 			*------ idade aposentadoria na entidade ------*;
-			IddApoEntPre = max(IddPartiCalc, IddApoEntPre);
+			IddApoEntPre[n] = max(idade_partic[n], IddApoEntPre[n]);
 
 			*------ data de elegibilidade à aposentadoria integral na entidade ------*;
-			DtApoEntPrev = INTNX('YEAR', DtNascPartic, IddApoEntPre, &vAlignment);
-			DtApoEntPrev = max(DtApoEntPrev, &DtCalAval);
+			DtApoEntPrev[n] = INTNX('YEAR', data_nasc_partic[n], IddApoEntPre[n], &vAlignment);
+			DtApoEntPrev[n] = max(DtApoEntPrev[n], &DtCalAval);
 
 			*------ tempo restante de contribuição na entidade entre as datas do cálculo e de aposentadoria ------*;
-			TmpPlanoRest = 0;
-/*			if (IddPartiFrac < IddApoEntPre) then TmpPlanoRest = max(0, round(IddApoEntPre - IddPartiCalc));*/
-			if (IddPartiCalc < IddApoEntPre) then TmpPlanoRest = max(0, round(IddApoEntPre - IddPartiCalc));
+			if (idade_partic[n] < IddApoEntPre[n]) then TmpPlanoRest[n] = max(0, round(IddApoEntPre[n] - idade_partic[n]));
 
 			*------ Tempo de contribuição inss na data de cálculo ------*;
-			TmpInssCalcu = floor(yrdif(DtIniContInss, &DtCalAval, &vBasis));
+			TmpInssCalcu[n] = floor(yrdif(DtIniContInss[n], &DtCalAval, &vBasis));
 
 			*------ Tempo de contribuição inss - maior valor entre o a premissa ou o tempo inss calculado ------*;
-			TmpContribInss = max(TmpContribInss, TmpInssCalcu);
+			TmpContribInss[n] = max(TmpContribInss[n], TmpInssCalcu[n]);
 
 			*------ Tempo de contribuição inss restante ------*;
-			TmpInssResto = round(IddApoEntPre - IddPartiCalc);
+			TmpInssResto[n] = round(IddApoEntPre[n] - idade_partic[n]);
 			
 			*------ Tempo de contribuição inss total ------*;
-			TmpInssTotal = Round(TmpInssCalcu + TmpInssResto);
+			TmpInssTotal[n] = Round(TmpInssCalcu[n] + TmpInssResto[n]);
 
-			if (CdSexoPartic = 1) then do;
-				IddConjuCalc = IddPartiCalc + DifConjug;
-				CdSexoConjug = 2;
+			if (sexo_partic[n] = 1) then do;
+				idade_conjug[n] = idade_partic[n] + DifConjug[n];
+				sexo_conjug[n] = 2;
 			end;
 			else do;
-				IddConjuCalc = IddPartiCalc - DifConjug;
-				CdSexoConjug = 1;
+				idade_conjug[n] = idade_partic[n] - DifConjug[n];
+				sexo_conjug[n] = 1;
 			end;
 
 			*---- Tempo de admissão na patrocinadora na data do cálculo ----;
-/*			TmpAdmIns = max(1, round(IddPartiFrac - IddAdmFracao, &vRoundCobertura));*/
-			TmpAdmIns = max(1, round(IddPartiCalc - IddAdmPatroc, &vRoundCobertura));
-
-			enquadramento[n, 1] = idParticipante;
-			enquadramento[n, 2] = IddPartiCalc;
-			enquadramento[n, 3] = IddAdmPatroc;
-			enquadramento[n, 4] = IddAssEntPre;
-			enquadramento[n, 5] = TmpAdmIns;
-			enquadramento[n, 6] = DtIniApoInss;
-			enquadramento[n, 7] = IddIniciInss;
-			enquadramento[n, 8] = IddIniApoInss;
-			enquadramento[n, 9] = DtIniContInss;
-			enquadramento[n, 10] = PrbCasado;
-			enquadramento[n, 11] = TmpInssCalcu;
-			enquadramento[n, 12] = TmpInssResto;
-			enquadramento[n, 13] = TmpInssTotal;
-			enquadramento[n, 14] = TmpContribInss;
-			enquadramento[n, 15] = DtApoEntPrev;
-			enquadramento[n, 16] = IddApoEntPre;
-			enquadramento[n, 17] = TmpPlanoPrev;
-			enquadramento[n, 18] = TmpPlanoRest;
-			enquadramento[n, 19] = CdSexoConjug;
-			enquadramento[n, 20] = IddConjuCalc;
-/*			enquadramento[n, 3] = IddPartiFrac;*/
-/*			enquadramento[n, 5] = IddAdmFracao;*/
+			TmpAdmIns[n] = max(1, round(idade_partic[n] - IddAdmPatroc[n], &vRoundCobertura));
 		END;
 
-		create work.ativos_enquadramento from enquadramento[colname={'id_participante' 'IddPartiCalc' 'IddAdmPatroc' 'IddAssEntPre' 'TmpAdmIns' 'DtIniApoInss' 'IddIniciInss' 'IddIniApoInss' 'DtIniContInss' 'PrbCasado' 'TmpInssCalcu' 'TmpInssResto' 'TmpInssTotal' 'TmpContribInss' 'DtApoEntPrev' 'IddApoEntPre' 'TmpPlanoPrev' 'TmpPlanoRest' 'CdSexoConjugTmp' 'IddConjuCalc'}];
-			append from enquadramento;
+		create work.ativos_enquadramento var {id_participante idade_partic IddAdmPatroc IddAssEntPre TmpAdmIns DtIniApoInss IddIniciInss IddIniApoInss DtIniContInss probab_casado TmpInssCalcu TmpInssResto TmpInssTotal TmpContribInss DtApoEntPrev IddApoEntPre TmpPlanoPrev TmpPlanoRest sexo_conjug idade_conjug};
+			append; 
 		close work.ativos_enquadramento;
-
-		free enquadramento ativos;
 	end;
 QUIT;
 
 data partic.ativos;
 	merge partic.ativos work.ativos_enquadramento;
 	by id_participante;
-	CdSexoConjug = CdSexoConjugTmp;
+	*CdSexoConjug = sexo_conjug;
 	if (&CdPlanBen = 5) then
 		VlSalEntPrev = min(VlSalEntPrev, &VL_MAX_SALARIO_CAIXA);
 	format DtIniApoInss DDMMYY10. DtIniApoInss DDMMYY10. DtIniContInss DDMMYY10. DtApoEntPrev DDMMYY10.;
-	drop CdSexoConjugTmp;
+	*drop sexo_conjug;
+	drop CdSexoConjug;
+	rename CdSexoPartic = sexo_partic;
 run;
+
+PROC SORT DATA=partic.ativos OUT=partic.ativos;
+  BY CdPatrocPlan;
+RUN;
 
 data partic.ativos;
 	merge partic.ativos premissa.reajuste_salarial(where=(CD_TIPO_REAJUSTE_SALARIAL = 1));
@@ -203,6 +192,10 @@ data partic.ativos;
 	if _n_ = 1 and ID_PARTICIPANTE = . then delete;
 	drop CD_TIPO_REAJUSTE_SALARIAL;
 run;
+
+PROC SORT DATA=partic.ativos OUT=partic.ativos;
+  BY id_participante;
+RUN;
 
 /*
 proc sql;

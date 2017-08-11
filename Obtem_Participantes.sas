@@ -21,37 +21,30 @@ PROC SQL;
 			WHEN t1.CD_ESTADO_CIVIL = 'S' THEN 4
 			ELSE 5
 		END) AS CdEstCivPart,
-		t2.DS_ESTADO_CIVIL as EstCivPart,
-            (CASE  
-               WHEN t1.FL_DIRETOR = 'N'
-               THEN 0
-               ELSE 1
-            END) AS CdExDirPatro, 
-            (DATEPART(t1.DT_OPCAO_BPD)) FORMAT=DDMMYY10. AS DT_OPCAO_BPD, 
             (DATEPART(t1.DT_ADMISSAO)) FORMAT=DDMMYY10. AS DtAdmPatroci, 
             (DATEPART(t1.DT_ASSOCIACAO_FUNDACAO)) FORMAT=DDMMYY10. AS DtAssEntPrev, 
           (t1.PC_BENEFICIO_ESPECIAL / 100) AS PeFatReduPbe, 
-        (CASE
-           WHEN t1.FL_APOSENTADORIA_ESPECIAL = 'N'
-           THEN 0
-           ELSE 1
-        END) AS CdElegApoEsp, 
-          t1.ID_ENTIDADE_ORIGEM AS CdParEntPrev, 
+/*        (CASE*/
+/*           WHEN t1.FL_APOSENTADORIA_ESPECIAL = 'N'*/
+/*           THEN 0*/
+/*           ELSE 1*/
+/*        END) AS CdElegApoEsp, */
+/*          t1.ID_ENTIDADE_ORIGEM AS CdParEntPrev, */
         (CASE  
            WHEN t1.FL_DEFICIENTE = 'N'
            THEN 0
            ELSE 1
         END) AS FL_DEFICIENTE,
-/*            (DATEPART(t1.DT_MORTE)) FORMAT=DDMMYY10. AS DT_MORTE, */
           t1.NR_MATRICULA_TITULAR AS NuMatrOrigem,
-		  (CASE 
-			  	WHEN t1.NR_MATRICULA_TITULAR IS NULL THEN 0
-				ELSE 1
-			END) AS FlgPensionista,
+/*		  (CASE */
+/*			  	WHEN t1.NR_MATRICULA_TITULAR IS NULL THEN 0*/
+/*				ELSE 1*/
+/*			END) AS FlgPensionista,*/
 			t1.fl_migrado
   FROM ORACLE.TB_ATU_PARTICIPANTE t1
-  INNER JOIN oracle.TB_ATU_ESTADO_CIVIL t2 on (t1.CD_ESTADO_CIVIL = t2.CD_ESTADO_CIVIL)
   WHERE t1.ID_CADASTRO = &id_cadastro
+/*  and (t1.id_participante >= 13335482 and t1.id_participante <= 13335581)*/
+/*  or (t1.id_participante >= 13338460 and t1.id_participante <= 13338559)*/
   ORDER BY t1.ID_PARTICIPANTE;
 RUN;
 
@@ -292,14 +285,25 @@ run;
 
 *--- separa participante grupo ativo e assistido ---*;
 %_eg_conditional_dropds(partic.ATIVOS);
-PROC SQL;
-	CREATE TABLE partic.ATIVOS AS
-	SELECT p1.*
-	FROM WORK.PARTICIPANTE p1
-	WHERE CdTipoBenefi IS NULL
-	AND DtIniBenPrev IS NULL
-	ORDER BY p1.ID_PARTICIPANTE;
-RUN;
+data partic.ativos;
+	set work.participante(where=(CdTipoBenefi = . & DtIniBenPrev = .));
+	drop CdSexoFilJov DtNascFilJov CdSexoFilInv DtNascFilInv;
+run;
+
+/*data partic.ativos;*/
+/*	do i = 1 to 100;*/
+/*		Slice = int(nObs * ranuni(1850));*/
+/*		set partic.ativos point= Slice nobs= nObs;*/
+/*		output;*/
+/*		end;*/
+/*	stop;*/
+/**/
+/*	drop i;*/
+/*run;*/
+
+/*proc sort data=partic.ativos out=partic.ativos;*/
+/*	by id_participante;*/
+/*run;*/
 
 PROC SQL NOPRINT;
 	SELECT COUNT (*) INTO: numberOfAtivos
@@ -307,14 +311,25 @@ PROC SQL NOPRINT;
 RUN;
   
 %_eg_conditional_dropds(partic.ASSISTIDOS);
-PROC SQL;
-	CREATE TABLE partic.ASSISTIDOS AS
-   	SELECT *
-  	FROM WORK.PARTICIPANTE t1
-	WHERE CdTipoBenefi IS NOT NULL
-	AND DtIniBenPrev IS NOT NULL
-	ORDER BY t1.ID_PARTICIPANTE;
-RUN;
+data partic.ASSISTIDOS;
+	set work.participante(where=(CdTipoBenefi ^= . & DtIniBenPrev ^= .));
+	drop VlSdoConPart VlSdoConPatr VL_RESERVA_BPD VL_SALDO_PORTADO VlBenSaldado VlSalEntPrev PeContrParti PeContrPatro;
+run;
+
+/*data partic.ASSISTIDOS;*/
+/*	do i = 1 to 100;*/
+/*		Slice = int(nObs * ranuni(1850));*/
+/*		set partic.ASSISTIDOS point= Slice nobs= nObs;*/
+/*		output;*/
+/*		end;*/
+/*	stop;*/
+/**/
+/*	drop i;*/
+/*run;*/
+
+/*proc sort data=partic.assistidos out=partic.assistidos;*/
+/*	by id_participante;*/
+/*run;*/
 
 PROC SQL NOPRINT;
 	SELECT COUNT (*) INTO: numberOfAssistidos
@@ -325,6 +340,3 @@ proc datasets library=temp kill memtype=data nolist;
 proc datasets library=work kill memtype=data nolist;
 	run;
 quit;
-
-/*PROC DELETE DATA = WORK.PLANO_BENEFICIO WORK.BENEFICIO_INSS WORK.BENEFICIO_FUNCEF WORK.RUBRICA_JUDICIAL WORK.CONJUGE WORK.FILHO_JOVEM WORK.FILHO_INVALIDO WORK.PARTICIPANTE;*/
-/*PROC DELETE DATA = WORK.DEPENDENTE;*/

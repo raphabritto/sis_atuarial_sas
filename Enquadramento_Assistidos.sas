@@ -160,7 +160,7 @@ QUIT;
 
 data cobertur.assistidos;
 	set partic.assistidos;
-	drop CdSitCadPart NoNomePartic CD_SITUACAO_PATROC CdEstCivPart DtNascPartic EstCivPart CdExDirPatro DT_OPCAO_BPD DtAdmPatroci DtAssEntPrev CdElegApoEsp IDPLANOPREV DtAdesaoPlan VlSdoConPart VlSdoConPatr VL_RESERVA_BPD VL_SALDO_PORTADO VlBenSaldado VlSalEntPrev CD_SITUACAO_FUNDACAO PeContrParti PeContrPatro DtIniBenInss DtIniBenPrev DtNascConjug DtNascFilJov DtNascFilInv CdAutoPatroc flg_manutencao_saldo;
+	drop CdSitCadPart NoNomePartic CD_SITUACAO_PATROC CdEstCivPart DtNascPartic DtAdmPatroci DtAssEntPrev IDPLANOPREV DtAdesaoPlan CD_SITUACAO_FUNDACAO DtIniBenInss DtIniBenPrev DtNascConjug DtNascFilJov DtNascFilInv CdAutoPatroc flg_manutencao_saldo;
 run;
 
 proc datasets library=work kill memtype=data nolist;

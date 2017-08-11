@@ -7,7 +7,7 @@ options dlcreatedir;
 		1 - deterministico
 		2 - estocastico
 ***;
-%let tipoCalculo = 1;
+%let tipoCalculo = 2;
 
 * --- variaveis de configuração do sistema que devem ser alteradas manuamente --- *;
 %let numeroCalculos = 0;
@@ -15,25 +15,25 @@ data _null_;
 	if &tipoCalculo = 1 then
 		call symputx('numeroCalculos', 1);
 	else if &tipoCalculo = 2 then
-		call symputx('numeroCalculos', 15);
+		call symputx('numeroCalculos', 100);
 run;
 
 
 * --- variaveis de configuração do sistema que devem ser alteradas manuamente --- *;
 *%let root_dir = \\shaula\caprev_sas\Fluxo_Atuarial_Estocastico;
-%let root_dir = \\shaula\caprev_sas\SIS_ATUARIAL\Data_Desenv;
+%let root_dir = \\shaula\caprev_sas\SIS_ATUARIAL\Resul_Estoc\;
 
 %let maxAge = 125;
 *%let MaxAgeAtivos = 125;
 *%let MaxAgeAssistidos = 125;
 *%let MaxAgeDeterministicoAtivos = 125;
 *%let MaxAgeDeterministicoAssistidos = 125;
-%let recordsPerBlockAtivos = 2500;
-%let recordsPerBlockAssistidos = 50000;
+*%let recordsPerBlockAtivos = 2500;
+*%let recordsPerBlockAssistidos = 50000;
 
 * --- variaveis que não podem ser alteradas manuamente --- *;
-%let numberOfBlocksAtivos = 0;
-%let numberOfBlocksAssistidos = 0;
+*%let numberOfBlocksAtivos = 0;
+*%let numberOfBlocksAssistidos = 0;
 %let numberOfAtivos = 0;
 %let numberOfAssistidos = 0;
 %let numberOfTaxaJuros = 0;

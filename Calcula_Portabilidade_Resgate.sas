@@ -10,11 +10,16 @@
 		%_eg_conditional_dropds(temp.ativos_fluxo_portab_tp&tipoCalculo._s&s.);
 		proc iml;
 			USE cobertur.ativos_tp&tipoCalculo._s&s.;
-				read all var {id_participante t VlSdoConPartEvol VlSdoConPatrEvol TmpPlanoPrev} into ativos;
+				read all var {id_participante} into id_participante;
+				read all var {t1} into t1;
+				read all var {saldo_conta_partic} into saldo_conta_partic;
+				read all var {saldo_conta_patroc} into saldo_conta_patroc;
+				read all var {TmpPlanoPrev} into tempo_plano_previd;
 			CLOSE cobertur.ativos_tp&tipoCalculo._s&s.;
 
 			USE cobertur.ativos_fatores;
-				read all var {wx apxa} into fatores;
+				read all var {wx} into wx;
+				read all var {apxa} into apxa;
 			CLOSE cobertur.ativos_fatores;
 
 			if (&tipoCalculo = 1) then do;
@@ -28,167 +33,146 @@
 				close premissa.taxa_juros_s&s.;
 
 				use cobertur.ativos_fatores_estoc_s&s.;
-					read all var {vivo valido ativo desligado} into fatores_estoc;
+					read all var {vivo} into vivo;
+					read all var {valido} into valido;
+					read all var {ativo} into ativo;
+					read all var {desligado} into desligado;
 				close cobertur.ativos_fatores_estoc_s&s.;
 			end;
 
-			qtsObs = nrow(ativos);
+			qtd_ativos = nrow(id_participante);
 
-			if (qtsObs > 0) then do;
-				fluxo_resg_portab = J(qtsObs, 6, 0);
+			if (qtd_ativos > 0) then do;
+				resgate = J(qtd_ativos, 1, 0);
+				despesa_resgat = J(qtd_ativos, 1, 0);
+				portabilidade = J(qtd_ativos, 1, 0);
+				despesa_portab = J(qtd_ativos, 1, 0);
+				despesa_vp_resgat = J(qtd_ativos, 1, 0);
+				despesa_vp_portab = J(qtd_ativos, 1, 0);
 
-				DO a = 1 TO qtsObs;
-					resgate = 0;
-					despesaResgate = 0;
-					portabilidade = 0;
-					despesaPortabilidade = 0;
-					despesaResgateVP = 0;
-					despesaPortabilidadeVP = 0;
-
+				DO a = 1 TO qtd_ativos;
 					if (&CdPlanBen = 4 | &CdPlanBen = 5) then do;
-						t = ativos[a, 2];
-						saldo_conta_partic = ativos[a, 3];
-						saldo_conta_patroc = ativos[a, 4];
-						tempo_plano_previd = ativos[a, 5];
-
-						if (&tipoCalculo = 1) then do;
-							wx = fatores[a, 1];
-							apxa = fatores[a, 2];
-						end;
-						else do;
-							apxa = 0;
-							wx = fatores_estoc[a, 1] * fatores_estoc[a, 2] * fatores_estoc[a, 3] *fatores_estoc[a, 4];
+						if (&tipoCalculo = 2) then do;
+							apxa[a] = 0;
+							wx[a] = vivo[a] * valido[a] * ativo[a] * desligado[a];
 						end;
 
-						taxa_juros_cober = taxas_juros[t + 1];
+						taxa_juros_cober = taxas_juros[t1[a] + 1];
 
 						*** regra calculo resgate - regra separada pois as premissas de tempo de participacao no plano podem variar da portabilidade ***;
 						if (&CdPlanBen = 4) then do;
-							if (tempo_plano_previd < 11) then do;
-								resgate = max(0, round(saldo_conta_patroc * 0.05, 0.01));
+							if (tempo_plano_previd[a] < 11) then do;
+								resgate[a] = max(0, round(saldo_conta_patroc[a] * 0.05, 0.01));
 							end;
-							else if (tempo_plano_previd >= 11 & tempo_plano_previd < 16) then do;
-								resgate = max(0, round(saldo_conta_patroc * 0.1, 0.01));
+							else if (tempo_plano_previd[a] >= 11 & tempo_plano_previd[a] < 16) then do;
+								resgate[a] = max(0, round(saldo_conta_patroc[a] * 0.1, 0.01));
 							end;
-							else if (tempo_plano_previd >= 16 & tempo_plano_previd < 21) then do;
-								resgate = max(0, round(saldo_conta_patroc * 0.15, 0.01));
+							else if (tempo_plano_previd[a] >= 16 & tempo_plano_previd[a] < 21) then do;
+								resgate[a] = max(0, round(saldo_conta_patroc[a] * 0.15, 0.01));
 							end;
-							else if (tempo_plano_previd >= 21) then do;
-								resgate = max(0, round(saldo_conta_patroc * 0.2, 0.01));
+							else if (tempo_plano_previd[a] >= 21) then do;
+								resgate[a] = max(0, round(saldo_conta_patroc[a] * 0.2, 0.01));
 							end;
 						end;
 						else if (&CdPlanBen = 5) then do;
-							if (tempo_plano_previd <= 10) then do;
-								resgate = max(0, round(saldo_conta_patroc * 1, 0.01));
+							if (tempo_plano_previd[a] <= 10) then do;
+								resgate[a] = max(0, round(saldo_conta_patroc[a] * 1, 0.01));
 							end;
-							else if (tempo_plano_previd > 10 & tempo_plano_previd <= 15) then do;
-								resgate = max(0, round(saldo_conta_patroc * 1, 0.01));
+							else if (tempo_plano_previd[a] > 10 & tempo_plano_previd[a] <= 15) then do;
+								resgate[a] = max(0, round(saldo_conta_patroc[a] * 1, 0.01));
 							end;
-							else if (tempo_plano_previd > 15 & tempo_plano_previd <= 20) then do;
-								resgate = max(0, round(saldo_conta_patroc * 1, 0.01));
+							else if (tempo_plano_previd[a] > 15 & tempo_plano_previd[a] <= 20) then do;
+								resgate[a] = max(0, round(saldo_conta_patroc[a] * 1, 0.01));
 							end;
-							else if (tempo_plano_previd > 20) then do;
-								resgate = max(0, round(saldo_conta_patroc * 1, 0.01));
+							else if (tempo_plano_previd[a] > 20) then do;
+								resgate[a] = max(0, round(saldo_conta_patroc[a] * 1, 0.01));
 							end;
 						end;
 
-						if (tempo_plano_previd < 3) then
-							despesaResgate = max(0, round((saldo_conta_partic + resgate) * wx * (1 - apxa), 0.01));
+						if (tempo_plano_previd[a] < 3) then
+							despesa_resgat[a] = max(0, round((saldo_conta_partic[a] + resgate[a]) * wx[a] * (1 - apxa[a]), 0.01));
 						else
-							despesaResgate = max(0, round((saldo_conta_partic + resgate) * wx * &percentualResgate * (1 - apxa), 0.01));
+							despesa_resgat[a] = max(0, round((saldo_conta_partic[a] + resgate[a]) * wx[a] * &percentualResgate * (1 - apxa[a]), 0.01));
 
 						*** regra calculo portabilidade - regra separada pois as premissas de tempo de participacao no plano podem variar do resgate ***;
 						if (&CdPlanBen = 4) then do;
-							if (tempo_plano_previd <= 10) then do;
-								portabilidade = max(0, round(saldo_conta_patroc * 1, 0.01));
+							if (tempo_plano_previd[a] <= 10) then do;
+								portabilidade[a] = max(0, round(saldo_conta_patroc[a] * 1, 0.01));
 							end;
-							else if (tempo_plano_previd > 10 & tempo_plano_previd <= 15) then do;
-								portabilidade = max(0, round(saldo_conta_patroc * 1, 0.01));
+							else if (tempo_plano_previd[a] > 10 & tempo_plano_previd[a] <= 15) then do;
+								portabilidade[a] = max(0, round(saldo_conta_patroc[a] * 1, 0.01));
 							end;
-							else if (tempo_plano_previd > 15 & tempo_plano_previd <= 20) then do;
-								portabilidade = max(0, round(saldo_conta_patroc * 1, 0.01));
+							else if (tempo_plano_previd[a] > 15 & tempo_plano_previd[a] <= 20) then do;
+								portabilidade[a] = max(0, round(saldo_conta_patroc[a] * 1, 0.01));
 							end;
-							else if (tempo_plano_previd > 20) then do;
-								portabilidade = max(0, round(saldo_conta_patroc * 1, 0.01));
+							else if (tempo_plano_previd[a] > 20) then do;
+								portabilidade[a] = max(0, round(saldo_conta_patroc[a] * 1, 0.01));
 							end;
 						end;
 						else if (&CdPlanBen = 5) then do;
-							if (tempo_plano_previd <= 10) then do;
-								portabilidade = max(0, round(saldo_conta_patroc * 1, 0.01));
+							if (tempo_plano_previd[a] <= 10) then do;
+								portabilidade[a] = max(0, round(saldo_conta_patroc[a] * 1, 0.01));
 							end;
-							else if (tempo_plano_previd > 10 & tempo_plano_previd <= 15) then do;
-								portabilidade = max(0, round(saldo_conta_patroc * 1, 0.01));
+							else if (tempo_plano_previd[a] > 10 & tempo_plano_previd[a] <= 15) then do;
+								portabilidade[a] = max(0, round(saldo_conta_patroc[a] * 1, 0.01));
 							end;
-							else if (tempo_plano_previd > 15 & tempo_plano_previd <= 20) then do;
-								portabilidade = max(0, round(saldo_conta_patroc * 1, 0.01));
+							else if (tempo_plano_previd[a] > 15 & tempo_plano_previd[a] <= 20) then do;
+								portabilidade[a] = max(0, round(saldo_conta_patroc[a] * 1, 0.01));
 							end;
-							else if (tempo_plano_previd > 20) then do;
-								portabilidade = max(0, round(saldo_conta_patroc * 1, 0.01));
+							else if (tempo_plano_previd[a] > 20) then do;
+								portabilidade[a] = max(0, round(saldo_conta_patroc[a] * 1, 0.01));
 							end;
 						end;
 
-						if (tempo_plano_previd < 3) then
-							despesaPortabilidade = 0;
+						if (tempo_plano_previd[a] < 3) then
+							despesa_portab[a] = 0;
 						else
-							despesaPortabilidade = max(0, round((saldo_conta_partic + portabilidade) * wx * &percentualPortabilidade * (1 - apxa), 0.01));
+							despesa_portab[a] = max(0, round((saldo_conta_partic[a] + portabilidade[a]) * wx[a] * &percentualPortabilidade * (1 - apxa[a]), 0.01));
 
-						v = max(0, 1 / ((1 + taxa_juros_cober) ** t));
+						v = max(0, 1 / ((1 + taxa_juros_cober) ** t1[a]));
 
-						despesaResgateVP = max(0, round(despesaResgate * v, 0.01));
-						despesaPortabilidadeVP = max(0, round(despesaPortabilidade * v, 0.01));
+						despesa_vp_resgat[a] = max(0, round(despesa_resgat[a] * v, 0.01));
+						despesa_vp_portab[a] = max(0, round(despesa_portab[a] * v, 0.01));
 					end;
-
-					fluxo_resg_portab[a, 1] = ativos[a, 1];
-					fluxo_resg_portab[a, 2] = ativos[a, 2];
-					fluxo_resg_portab[a, 3] = despesaResgate;
-					fluxo_resg_portab[a, 4] = despesaPortabilidade;
-					fluxo_resg_portab[a, 5] = despesaResgateVP;
-					fluxo_resg_portab[a, 6] = despesaPortabilidadeVP;
 				END;
 
-				create temp.ativos_fluxo_portab_tp&tipoCalculo._s&s. from fluxo_resg_portab[colname={'id_participante' 't' 'DespesaResgate' 'DespesaPortabilidade' 'DespesaResgateVP' 'DespesaPortabilidadeVP'}];
-					append from fluxo_resg_portab;
+				create temp.ativos_fluxo_portab_tp&tipoCalculo._s&s. var {id_participante t1 despesa_resgat despesa_portab despesa_vp_resgat despesa_vp_portab};
+					append;
 				close temp.ativos_fluxo_portab_tp&tipoCalculo._s&s.;
-
-				free fluxo_resg_portab ativos fatores;
 			end;
 		quit;
 
-/*		data determin.rotatividade_ativos;*/
-/*			merge determin.rotatividade_ativos work.rotatividade_determin_ativos;*/
-/*			by id_participante t;*/
-/*			format DespesaResgate commax14.2 DespesaPortabilidade commax14.2 DespesaResgateVP commax14.2 DespesaPortabilidadeVP commax14.2;*/
-/*		run;*/
+		%if (%sysfunc(exist(temp.ativos_fluxo_portab_tp&tipoCalculo._s&s.))) %then %do;
+			%_eg_conditional_dropds(work.ativos_despesa_portab_tp&tipoCalculo._s&s.);
+			proc summary data = temp.ativos_fluxo_portab_tp&tipoCalculo._s&s.;
+				class t1;
+				var despesa_resgat despesa_portab despesa_vp_resgat despesa_vp_portab;
+				format despesa_resgat commax18.2 despesa_portab commax18.2 despesa_vp_resgat commax18.2 despesa_vp_portab commax18.2;
+				output out= work.ativos_despesa_portab_tp&tipoCalculo._s&s. sum=;
+			run;
 
-		%_eg_conditional_dropds(work.ativos_despesa_portab_tp&tipoCalculo._s&s.);
-		proc summary data = temp.ativos_fluxo_portab_tp&tipoCalculo._s&s.;
-			class t;
-			var DespesaResgate DespesaPortabilidade DespesaResgateVP DespesaPortabilidadeVP;
-			format DespesaResgate commax18.2 DespesaPortabilidade commax18.2 DespesaResgateVP commax18.2 DespesaPortabilidadeVP commax18.2;
-			output out= work.ativos_despesa_portab_tp&tipoCalculo._s&s. sum=;
-		run;
+			%_eg_conditional_dropds(fluxo.ativos_despesa_portab_tp&tipoCalculo._s&s.);
+			data fluxo.ativos_despesa_portab_tp&tipoCalculo._s&s.;
+				set work.ativos_despesa_portab_tp&tipoCalculo._s&s.;
+				if cmiss(t1) then delete;
+				drop _TYPE_ _FREQ_;
+			run;
 
-		%_eg_conditional_dropds(fluxo.ativos_despesa_portab_tp&tipoCalculo._s&s.);
-		data fluxo.ativos_despesa_portab_tp&tipoCalculo._s&s.;
-			set work.ativos_despesa_portab_tp&tipoCalculo._s&s.;
-			if cmiss(t) then delete;
-			drop _TYPE_ _FREQ_;
-		run;
+			%_eg_conditional_dropds(work.ativos_encargo_portab_tp&tipoCalculo._s&s.);
+			proc summary data = temp.ativos_fluxo_portab_tp&tipoCalculo._s&s.;
+				class id_participante;
+				var despesa_vp_resgat despesa_vp_portab;
+				format despesa_vp_resgat commax18.2 despesa_vp_portab commax18.2;
+				output out= work.ativos_encargo_portab_tp&tipoCalculo._s&s. sum=;
+			run;
 
-		%_eg_conditional_dropds(work.ativos_encargo_portab_tp&tipoCalculo._s&s.);
-		proc summary data = temp.ativos_fluxo_portab_tp&tipoCalculo._s&s.;
-			class id_participante;
-			var DespesaResgateVP DespesaPortabilidadeVP;
-			format DespesaResgateVP commax18.2 DespesaPortabilidadeVP commax18.2;
-			output out= work.ativos_encargo_portab_tp&tipoCalculo._s&s. sum=;
-		run;
-
-		%_eg_conditional_dropds(fluxo.ativos_encargo_portab_tp&tipoCalculo._s&s.);
-		data fluxo.ativos_encargo_portab_tp&tipoCalculo._s&s.;
-			set work.ativos_encargo_portab_tp&tipoCalculo._s&s.;
-			if cmiss(id_participante) then delete;
-			drop _TYPE_ _FREQ_;
-		run;
+			%_eg_conditional_dropds(fluxo.ativos_encargo_portab_tp&tipoCalculo._s&s.);
+			data fluxo.ativos_encargo_portab_tp&tipoCalculo._s&s.;
+				set work.ativos_encargo_portab_tp&tipoCalculo._s&s.;
+				if cmiss(id_participante) then delete;
+				drop _TYPE_ _FREQ_;
+			run;
+		%end;
 	%end;
 %mend;
 %calculaFluxoResgPortab;
@@ -196,30 +180,3 @@
 proc datasets library=work kill memtype=data nolist;
 	run;
 quit;
-
-
-*proc delete data = work.rotatividade_determin_ativos;
-
-/*%_eg_conditional_dropds(determin.rotatividade_ativos);
-data determin.rotatividade_ativos;
-	set determin.rotatividade_ativos1 - determin.rotatividade_ativos&numberOfBlocksAtivos;
-run;*/
-
-/*proc datasets nodetails library=determin;
-   delete rotatividade_ativos1 - rotatividade_ativos&numberOfBlocksAtivos;
-run;*/
-
-
-
-
-
-/*
-%macro gravaMemoriaCalculo;
-	%if (&isGravaMemoriaCalculo = 0) %then %do;
-		proc datasets nodetails library=determin;
-			delete rotatividade_ativos;
-		run;
-	%end;
-%mend;
-%gravaMemoriaCalculo;
-*/

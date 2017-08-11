@@ -13,124 +13,118 @@
 			load module= GetContribuicao;
 
 			use cobertur.ativos_tp&tipoCalculo._s&s.;
-				read all var {id_participante t IddParticCobert IddIniApoInss VlBenefiInss SalConPrjEvol SalBenefInssEvol VlSdoConPartEvol VlSdoConPatrEvol VlBenSaldado PeFatReduPbe PrbCasado flg_manutencao_saldo DtAdesaoPlan DtIniBenInss} into ativos;
+				read all var {id_participante} into id_participante;
+				read all var {t1} into t1;
+				read all var {idade_partic_cober} into idade_partic_cober;
+				read all var {IddIniApoInss} into idade_aposent_inss;
+				read all var {VlBenefiInss} into beneficio_inss;
+				read all var {salario_contrib} into SalConPrj;
+				read all var {SalBenefInss} into SalBenefInss;
+				read all var {saldo_conta_partic} into saldo_conta_partic;
+				read all var {saldo_conta_patroc} into saldo_conta_patroc;
+				read all var {VlBenSaldado} into beneficio_saldado;
+				read all var {PeFatReduPbe} into PeFatReduPbe;
+				read all var {probab_casado} into probab_casado;
+				read all var {flg_manutencao_saldo} into is_manut_saldo;
+				read all var {DtAdesaoPlan} into data_adesao_plano;
+				read all var {DtIniBenInss} into data_inicio_benef_inss;
 			close cobertur.ativos_tp&tipoCalculo._s&s.;
 
 			use cobertur.ativos_fatores;
-				read all var {axiicb ajxcb ajxx_i dy_dx ix Axii} into fatores;
+				read all var {axiicb} into axiicb;
+				read all var {ajxcb} into ajxcb;
+				read all var {ajxx_i} into ajxx_i;
+				read all var {dy_dx} into dy_dx;
+				read all var {ix} into ix;
+				read all var {Axii} into axii;
 			close cobertur.ativos_fatores;
 
-			qtdObs = nrow(ativos);
+			qtd_ativos = nrow(id_participante);
 
-			if (qtdObs > 0) then do;
-				cobertura_piv = J(qtdObs, 6, 0);
+			if (qtd_ativos > 0) then do;
+				beneficio_total_piv = J(qtd_ativos, 1, 0);
+				contribuicao_piv = J(qtd_ativos, 1, 0);
+				beneficio_liquido_piv = J(qtd_ativos, 1, 0);
+				aplica_pxs_piv = J(qtd_ativos, 1, 0);
 
-				DO a = 1 TO qtdObs;
-					*--- VARIAVEIS INPUT ---*;
-					idade_partic_cober = ativos[a, 3];
-					idade_aposent_inss = ativos[a, 4];
-					beneficio_inss = ativos[a, 5];
-					SalConPrj = ativos[a, 6];
-					SalBenefInss = ativos[a, 7];
-					saldo_conta_total = round(ativos[a, 8] + ativos[a, 9], 0.01);
-					beneficio_saldado = ativos[a, 10];
-					PeFatReduPbe = ativos[a, 11];
-					probab_casado = ativos[a, 12];
-					flg_manutencao_saldo = ativos[a, 13];
-					data_adesao_plano = ativos[a, 14]; 
-					data_inicio_benef_inss = ativos[a, 15];
+				DO a = 1 TO qtd_ativos;
+					saldo_conta_total = max(0, round(saldo_conta_partic[a] + saldo_conta_patroc[a], 0.01));
 
-					axiicb = fatores[a, 1];
-					ajxcb = fatores[a, 2];
-					ajxx_i = fatores[a, 3];
-					dy_dx = fatores[a, 4];
-					ix = fatores[a, 5];
-					axii = fatores[a, 6];
-
-					*--- VARIAVEIS OUTPUT ---*;
-					beneficio_total_piv = 0;
-					contribuicao_piv = 0;
-					beneficio_liquido_piv = 0;
 					FtRenVitPiv = 0;
-					AplicarPxsPIV = 0;
 					BenTotPivPxs = 0;
 					BenTotPivRev = 0;
 
-					if ((&CdPlanBen = 1 | &CdPlanBen = 2) & beneficio_inss = 0 & idade_partic_cober < idade_aposent_inss) then do;
+					if ((&CdPlanBen = 1 | &CdPlanBen = 2) & beneficio_inss[a] = 0 & idade_partic_cober[a] < idade_aposent_inss[a]) then do;
 						if (&CdPlanBen = 1) then do;
-							BenTotPivPxs = max(0, round(SalConPrj - SalBenefInss , 0.01));
+							BenTotPivPxs = max(0, round(SalConPrj[a] - SalBenefInss[a], 0.01));
 
-							if (PeFatReduPbe > 0) then BenTotPivPxs = round(BenTotPivPxs * PeFatReduPbe, 0.01);
+							if (PeFatReduPbe[a] > 0) then BenTotPivPxs = round(BenTotPivPxs * PeFatReduPbe[a], 0.01);
 
-							BenTotPivPxs = max(0, round(((SalBenefInss + BenTotPivPxs) * &CtFamPens) - SalBenefInss, 0.01));
+							BenTotPivPxs = max(0, round(((SalBenefInss[a] + BenTotPivPxs) * &CtFamPens) - SalBenefInss[a], 0.01));
 							
-				     		FtRenVitPiv = round((axiicb + &CtFamPens * probab_casado * (ajxcb - ajxx_i)) * &NroBenAno * &FtBenEnti, 0.0000000001);
+				     		FtRenVitPiv = round((axiicb[a] + &CtFamPens * probab_casado[a] * (ajxcb[a] - ajxx_i[a])) * &NroBenAno * &FtBenEnti, 0.0000000001);
 
 							if (FtRenVitPiv > 0) then 
 								BenTotPivRev = max(0, round((saldo_conta_total / FtRenVitPiv) * &CtFamPens * &FtBenEnti, 0.01));
 
 							if (BenTotPivPxs > BenTotPivRev) then do;
-								beneficio_total_piv = BenTotPivPxs;
-								AplicarPxsPIV = 1;
+								beneficio_total_piv[a] = BenTotPivPxs;
+								aplica_pxs_piv[a] = 1;
 							end;
 							else
-								beneficio_total_piv = BenTotPivRev;
+								beneficio_total_piv[a] = BenTotPivRev;
 
 							*------ Contribuição e benefício líquido da cobertura PIV ------;
-							contribuicao_piv = GetContribuicao(beneficio_total_piv/&FtBenEnti) * (1 - &TxaAdmBen);
+							contribuicao_piv[a] = max(0, round(GetContribuicao(beneficio_total_piv[a] / &FtBenEnti) * (1 - &TxaAdmBen), 0.01));
 						end;
 						else if (&CdPlanBen = 2) then do;
-							beneficio_total_piv = max(0, round(beneficio_saldado * &CtFamPens * &FtBenLiquido * &FtBenEnti, 0.01));
+							beneficio_total_piv[a] = max(0, round(beneficio_saldado[a] * &CtFamPens * &FtBenLiquido * &FtBenEnti, 0.01));
 						end;
 					end;
-					else if ((&CdPlanBen = 5 & data_inicio_benef_inss <= data_adesao_plano) | ((&CdPlanBen = 4 | &CdPlanBen = 5) & beneficio_inss = 0 & idade_partic_cober < idade_aposent_inss)) then do;
-						FtRenVitPiv = max(0, round((axiicb + &CtFamPens * probab_casado * (ajxcb - ajxx_i)) * &NroBenAno * &FtBenEnti + (axii * &peculioMorteAssistido), 0.0000000001));
+					else if ((&CdPlanBen = 5 & data_inicio_benef_inss[a] <= data_adesao_plano[a]) | ((&CdPlanBen = 4 | &CdPlanBen = 5) & beneficio_inss[a] = 0 & idade_partic_cober[a] < idade_aposent_inss[a])) then do;
+						FtRenVitPiv = max(0, round((axiicb[a] + &CtFamPens * probab_casado[a] * (ajxcb[a] - ajxx_i[a])) * &NroBenAno * &FtBenEnti + (axii[a] * &peculioMorteAssistido), 0.0000000001));
 
-						if (flg_manutencao_saldo = 0) then
-							BenTotPivPxs = max(0, max(round(SalConPrj - SalBenefInss, 0.01), round(SalConPrj * &percentualSRB, 0.01)));
+						if (is_manut_saldo[a] = 0) then
+							BenTotPivPxs = max(0, max(round(SalConPrj[a] - SalBenefInss[a], 0.01), round(SalConPrj[a] * &percentualSRB, 0.01)));
 
 						if (&CdPlanBen = 5) then
-							BenTotPivPxs = max(0, round(BenTotPivPxs - (beneficio_saldado * &FtBenLiquido), 0.01));
+							BenTotPivPxs = max(0, round(BenTotPivPxs - (beneficio_saldado[a] * &FtBenLiquido), 0.01));
 
 						if (FtRenVitPiv > 0) then
 							BenTotPivRev = max(0, round((saldo_conta_total / FtRenVitPiv) * &FtBenEnti, &vRoundMoeda));
 
 						if (BenTotPivPxs > BenTotPivRev) then do;
-							beneficio_total_piv = BenTotPivPxs;
-							AplicarPxsPIV = 1;
+							beneficio_total_piv[a] = BenTotPivPxs;
+							aplica_pxs_piv[a] = 1;
 						end;
 						else
-							beneficio_total_piv = BenTotPivRev;
+							beneficio_total_piv[a] = BenTotPivRev;
 
-						beneficio_total_piv = round(beneficio_total_piv * &CtFamPens, 0.01);
+						beneficio_total_piv[a] = round(beneficio_total_piv[a] * &CtFamPens, 0.01);
 					end;
 
 					if (&CdPlanBen ^= 1 & &percentualSaqueBUA > 0) then
-						beneficio_liquido_piv = max(0, round((beneficio_total_piv - contribuicao_piv) * (1 - &percentualBUA * &percentualSaqueBUA), &vRoundMoeda));
+						beneficio_liquido_piv[a] = max(0, round((beneficio_total_piv[a] - contribuicao_piv[a]) * (1 - &percentualBUA * &percentualSaqueBUA), &vRoundMoeda));
 					else
-						beneficio_liquido_piv = max(0, round(beneficio_total_piv - contribuicao_piv, &vRoundMoeda));
-
-					cobertura_piv[a, 1] = ativos[a, 1];
-					cobertura_piv[a, 2] = ativos[a, 2];
-					cobertura_piv[a, 3] = beneficio_total_piv;
-					cobertura_piv[a, 4] = contribuicao_piv;
-					cobertura_piv[a, 5] = beneficio_liquido_piv;
-					cobertura_piv[a, 6] = AplicarPxsPIV;
+						beneficio_liquido_piv[a] = max(0, round(beneficio_total_piv[a] - contribuicao_piv[a], &vRoundMoeda));
 				END;
 
-				create work.ativos_cobertura_piv_tp&tipoCalculo._s&s. from cobertura_piv[colname={'id_participante' 't' 'BenTotCobPIV' 'ConPvdCobPIV' 'BenLiqCobPIV' 'AplicarPxsPIV'}];
-					append from cobertura_piv;
+				create work.ativos_cobertura_piv_tp&tipoCalculo._s&s. var {id_participante t1 beneficio_total_piv contribuicao_piv beneficio_liquido_piv aplica_pxs_piv};
+					append;
 				close work.ativos_cobertura_piv_tp&tipoCalculo._s&s.;
-
-				free cobertura_piv ativos fatores;
 			end;
 		QUIT;
 
-		data cobertur.ativos_tp&tipoCalculo._s&s.;
-			merge cobertur.ativos_tp&tipoCalculo._s&s. work.ativos_cobertura_piv_tp&tipoCalculo._s&s.;
-			by id_participante t;
-			format BenTotCobPIV COMMAX14.2 ConPvdCobPIV COMMAX14.2 BenLiqCobPIV COMMAX14.2;
-		run;
+		%if (%sysfunc(exist(work.ativos_cobertura_piv_tp&tipoCalculo._s&s.))) %then %do;
+			data cobertur.ativos_tp&tipoCalculo._s&s.;
+				merge cobertur.ativos_tp&tipoCalculo._s&s. work.ativos_cobertura_piv_tp&tipoCalculo._s&s.;
+				by id_participante t1;
+				format beneficio_total_piv COMMAX14.2 contribuicao_piv COMMAX14.2 beneficio_liquido_piv COMMAX14.2;
+			run;
+
+			proc delete data = work.ativos_cobertura_piv_tp&tipoCalculo._s&s. (gennum=all);
+			run;
+		%end;
 	%end;
 %mend;
 %calcCoberturaPiv;

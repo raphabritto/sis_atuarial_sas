@@ -224,6 +224,33 @@
 			end;
 		QUIT;
 
+		%_eg_conditional_dropds(fluxo.assistidos_despesa_tp&tipoCalculo._s&s.);
+		PROC SQL;
+		   CREATE TABLE fluxo.assistidos_despesa_tp&tipoCalculo._s&s. AS 
+		   SELECT t1.t, 
+				  sum(t1.DespApoFxo) format=commax14.2 as VlDespApoFxo,
+				  sum(t1.DespFutFxo) format=commax14.2 as VlDespFutFxo,
+				  sum(t1.DespPmsFxo) format=commax14.2 as VlDespPmsFxo,
+				  sum(t1.DespApoVP) format=commax14.2 as VPDesApo,
+				  sum(t1.DespFutVP) format=commax14.2 as VPDesFut,
+				  sum(t1.DespPmsVP) format=commax14.2 as VPDesPms
+		      FROM fluxo.assistidos_fluxo_tp&tipoCalculo._s&s. t1
+			  group by t1.t
+			  ORDER BY t1.t;
+		QUIT;
+
+		%_eg_conditional_dropds(fluxo.assistidos_encargo_tp&tipoCalculo._s&s.);
+		proc sql;
+			create table fluxo.assistidos_encargo_tp&tipoCalculo._s&s. as
+			select t1.id_participante,
+				   sum(t1.DespApoVP) format=commax14.2 as EncargoApo,
+				   sum(t1.DespFutVP) format=commax14.2 as EncargoFut,
+				   sum(DespPmsVP) format=commax14.2 as EncargoPms
+			from fluxo.assistidos_fluxo_tp&tipoCalculo._s&s. t1
+			group by t1.id_participante
+			order by t1.id_participante;
+		run;
+
 /*		data determin.deterministico_assistidos;*/
 /*			merge determin.deterministico_assistidos work.cal_deterministico_assistidos;*/
 /*			by id_participante t;*/
